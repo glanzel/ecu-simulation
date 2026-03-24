@@ -21,16 +21,20 @@ class SimulationConfig:
     ecu_adjustment_kappa: float = 0.25
     ecu_min: float = 0.01
     ecu_max: float = 1_000_000.0
-    # Referenzpreis p_ref_i (ECU pro Einheit); typisch = Start-Schattenpreis nach Normierung
+    # Referenz-Schattenpreis p_ref,i (ECU/Einh.); Fallback: Start-Schattenpreis nach EcuJ-Normierung
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
-    # Skalierung der Basisnachfrage D0_i relativ zu VEJ_i (0 < factor < 1 empfohlen)
+    # Anteil f_i: D_i(p_ref) startet als f_i·VEJ_i (isoelastische Skalierung „bei Referenzpreis“)
     d0_fraction_of_vej: Mapping[str, float] = field(default_factory=dict)
-    # Kybernetik
+    # Kybernetik (historische Preisfindung: nur beobachtete p, D)
     price_bump: float = 1.08
     max_price_iterations: int = 500
     tolerance: float = 1e-9
+    # η̂ = Δln u / Δln p aus zwei Schritten; auf Intervall klemmen (numerisch / Plausibilität)
+    price_eta_clip: tuple[float, float] = (-12.0, -0.02)
+    # Ein Schritt p_neu/p_alt = (VEJ/D)^(1/η̂) wird auf dieses Intervall begrenzt
+    price_step_multiplier_clip: tuple[float, float] = (1.01, 2.5)
 
     def resolved_p_ref(self, initial_prices: Mapping[str, float]) -> dict[str, float]:
         """p_ref: explizit oder Fallback auf initial normierte Schattenpreise."""

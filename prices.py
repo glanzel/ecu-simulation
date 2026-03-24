@@ -6,14 +6,18 @@ Schattenpreise p_i (ECU pro Einheit Kontrollvariable) mit Kopplung an EcuJ:
 Es wird **nicht** auf Gleichheit normiert: Ist die Summe bereits ≥ EcuJ, bleibt Slack;
 liegt sie darunter, werden die Preise **hoch**skaliert, bis die Summe die Untergrenze erreicht.
 
-Kybernetik: bei zu hoher Nachfrage werden einzelne p_i erhöht (Preisdruck).
+Preisfindung (in ``estimate_next_prices_from_timeline``): ausschließlich aus der
+``ConsumptionTimeline``. Dieses Modul kennt **keine** Nachfragefunktion und importiert
+``demand`` nicht — die Simulation liefert beobachtete Verbrauchsdaten.
 """
 
 from __future__ import annotations
 
-from typing import Callable, Sequence
+import math
+from typing import Sequence
 
-from ecu_sim.config import BOUNDARY_KEYS, SimulationConfig
+from ecu_simulation.config import BOUNDARY_KEYS, SimulationConfig
+from ecu_simulation.observations import ConsumptionTimeline, apply_new_prices_to_last_interval
 
 
 def initial_weights_uniform(n: int) -> list[float]:
@@ -78,37 +82,111 @@ def enforce_ecu_floor(
     return {k: prices[k] for k in BOUNDARY_KEYS}
 
 
-def equilibrium_prices(
+def _implied_elasticity_from_history(
+    p_prev: float,
+    p_last: float,
+    u_prev: float,
+    u_last: float,
+    eta_clip: tuple[float, float],
+) -> float | None:
+    """
+    Lokale Elastizität η̂ = d ln u / d ln p aus zwei aufeinanderfolgenden Beobachtungen.
+    Nur sinnvoll, wenn η̂ < 0 (fallende Nachfrage bei höherem Preis).
+    """
+    if p_prev <= 0 or p_last <= 0 or u_prev <= 0 or u_last <= 0:
+        return None
+    lp = math.log(p_last / p_prev)
+    if abs(lp) < 1e-14:
+        return None
+    lu = math.log(u_last / u_prev)
+    eta = lu / lp
+    if eta >= 0:
+        return None
+    lo, hi = eta_clip
+    if eta < lo:
+        eta = lo
+    elif eta > hi:
+        eta = hi
+    return eta
+
+
+def _timeline_to_price_demand_pairs(
+    timeline: ConsumptionTimeline,
+) -> list[tuple[dict[str, float], dict[str, float]]]:
+    """Liest aus der Timeline die beobachteten (price, value)-Paare je Schritt."""
+    out: list[tuple[dict[str, float], dict[str, float]]] = []
+    for interval in timeline:
+        p = {r.control_variable_key: r.price for r in interval.records}
+        u = {r.control_variable_key: r.value for r in interval.records}
+        out.append((p, u))
+    return out
+
+
+def _estimate_next_prices_from_pairs(
+    history: list[tuple[dict[str, float], dict[str, float]]],
     vej: dict[str, float],
     ecu_floor: float,
-    demand_at: Callable[[dict[str, float]], dict[str, float]],
     cfg: SimulationConfig,
-) -> tuple[dict[str, float], dict[str, float]]:
-    """
-    Findet (p, u) sodass u_i ≤ VEJ_i und Σ p_i·VEJ_i ≥ ecu_floor (Untergrenze EcuJ).
-
-    Iteration: bei u_i > VEJ_i wird p_i erhöht; anschließend nur Hochskalierung, falls Summe < ecu_floor.
-    """
-    p = prices_from_weights(vej, ecu_floor, initial_weights_uniform(len(BOUNDARY_KEYS)))
-    p = scale_to_ecu_budget(p, vej, ecu_floor)
-
-    bump = cfg.price_bump
+) -> dict[str, float]:
+    """Kernregel aus der Historie von (p, u)-Paaren (intern)."""
+    if not history:
+        raise ValueError("history muss mindestens eine (p, u)-Beobachtung enthalten.")
+    p_last = {k: history[-1][0][k] for k in BOUNDARY_KEYS}
+    u_last = {k: history[-1][1][k] for k in BOUNDARY_KEYS}
     tol = cfg.tolerance
-    for _ in range(cfg.max_price_iterations):
-        u = demand_at(p)
-        if all(u[k] <= vej[k] + tol for k in BOUNDARY_KEYS):
-            p = enforce_ecu_floor(p, vej, ecu_floor, tol)
-            u = demand_at(p)
-            return p, u
-        changed = False
-        for k in BOUNDARY_KEYS:
-            if u[k] > vej[k] + tol:
-                p[k] *= bump
-                changed = True
-        if not changed:
-            break
-        p = enforce_ecu_floor(p, vej, ecu_floor, tol)
+    bump = cfg.price_bump
 
-    p = enforce_ecu_floor(p, vej, ecu_floor, tol)
-    u = demand_at(p)
-    return p, u
+    if all(u_last[k] <= vej[k] + tol for k in BOUNDARY_KEYS):
+        return enforce_ecu_floor(p_last, vej, ecu_floor, tol)
+
+    p_new = {k: p_last[k] for k in BOUNDARY_KEYS}
+    has_prev = len(history) >= 2
+    p_prev = {k: history[-2][0][k] for k in BOUNDARY_KEYS} if has_prev else None
+    u_prev = {k: history[-2][1][k] for k in BOUNDARY_KEYS} if has_prev else None
+
+    for k in BOUNDARY_KEYS:
+        if u_last[k] <= vej[k] + tol:
+            continue
+        mult = bump
+        if has_prev and p_prev is not None and u_prev is not None:
+            eta = _implied_elasticity_from_history(
+                p_prev[k], p_last[k], u_prev[k], u_last[k], cfg.price_eta_clip
+            )
+            if eta is not None:
+                ratio_target = vej[k] / u_last[k]
+                if ratio_target > 0 and ratio_target < 1.0:
+                    raw = math.exp(math.log(ratio_target) / eta)
+                    lo, hi = cfg.price_step_multiplier_clip
+                    mult = max(lo, min(hi, raw))
+        p_new[k] *= mult
+
+    return enforce_ecu_floor(p_new, vej, ecu_floor, tol)
+
+
+def estimate_next_prices_from_timeline(
+    timeline: ConsumptionTimeline,
+    vej: dict[str, float],
+    ecu_floor: float,
+    cfg: SimulationConfig,
+) -> dict[str, float]:
+    """
+    Nächster Preisvektor aus der ``ConsumptionTimeline``; schreibt **nur**
+    ``ConsumptionRecord.new_price`` auf dem **letzten** Intervall (nach EcuJ-Boden).
+    """
+    if not timeline:
+        raise ValueError("timeline muss mindestens ein ConsumptionInterval enthalten.")
+    pairs = _timeline_to_price_demand_pairs(timeline)
+    p_final = _estimate_next_prices_from_pairs(pairs, vej, ecu_floor, cfg)
+    apply_new_prices_to_last_interval(timeline, p_final)
+    return p_final
+
+
+def finalize_new_prices_on_last_interval(
+    timeline: ConsumptionTimeline,
+    prices_after_enforce: dict[str, float],
+) -> None:
+    """
+    Setzt ``new_price`` auf dem letzten Intervall (z. B. nach erstem ``enforce_ecu_floor``).
+    Sollte nur dort aufgerufen werden, wo die Preislogik den Vorschlag bestätigt.
+    """
+    apply_new_prices_to_last_interval(timeline, prices_after_enforce)
