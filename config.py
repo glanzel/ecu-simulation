@@ -27,6 +27,10 @@ class SimulationConfig:
     epsilon: Mapping[str, float] = field(default_factory=dict)
     # Anteil f_i: D_i(p_ref) startet als f_i·VEJ_i (isoelastische Skalierung „bei Referenzpreis“)
     d0_fraction_of_vej: Mapping[str, float] = field(default_factory=dict)
+    # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(N(0, σ²)); σ in Log-Raum, typ. ~0,3 ≈ 30 % relative Schwankung
+    demand_at_reference_price_log_noise_std: float = 0.3
+    # Optional: RNG-Seed für reproduzierbare Läufe (None = nicht setzen)
+    random_seed: int | None = None
     # Kybernetik (historische Preisfindung: nur beobachtete p, D)
     price_bump: float = 1.08
     max_price_iterations: int = 500

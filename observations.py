@@ -37,7 +37,7 @@ class ConsumptionRecord:
     control_variable_key: str
     unit: str
     value: float
-    """Beobachtete Nachfrage / Verbrauch (jährliche Rate, konsistent zu VEJ)."""
+    """Beobachteter Konsum / Verbrauch (jährliche Rate, konsistent zu VEJ)."""
     vej: float
     price: float
     """Schattenpreis, zu dem ``value`` beobachtet wurde."""
@@ -63,7 +63,7 @@ def consumption_interval_from_observation(
     step_index: int,
     zeitraum_days: float,
     prices: dict[str, float],
-    demand: dict[str, float],
+    consumption: dict[str, float],
     vej: dict[str, float],
 ) -> ConsumptionInterval:
     """Baut einen Abschnitt aus den Dicts der Simulation (ohne ``new_price``)."""
@@ -73,7 +73,7 @@ def consumption_interval_from_observation(
             ConsumptionRecord(
                 control_variable_key=k,
                 unit=_canonical_unit_for_boundary(k),
-                value=demand[k],
+                value=consumption[k],
                 vej=vej[k],
                 price=prices[k],
                 new_price=None,

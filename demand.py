@@ -1,20 +1,22 @@
 """
-Nachfragemenge ``demand_quantity`` (Einheit der jeweiligen Kontrollvariable, vgl. VEJ).
+Konsummenge ``consumption_quantity`` (Einheit der jeweiligen Kontrollvariable, vgl. VEJ).
 
-Formel (Rückgabewert):
+Formel:
 
-    Nachfrage = demand_at_reference_price
-                · (shadow_price / reference_shadow_price) ** price_elasticity
+    consumption_quantity = demand_at_reference_price
+        · (shadow_price / reference_shadow_price) ** price_elasticity
+
+``demand_at_reference_price`` ist dabei die nachgefragte Menge bei ``shadow_price == reference_shadow_price``
+(Verankerung der Kurve); der Rückgabewert ist die Menge zum **aktuellen** ``shadow_price``.
 
 Voraussetzung: ``price_elasticity < 0`` (fallende Nachfrage bei höherem Preis).
 
-Legende — Parameter von ``demand_quantity``:
+Legende — Parameter von ``consumption_quantity``:
 
     shadow_price
         Aktueller Schattenpreis (ECU pro Einheit der Kontrollvariable).
     demand_at_reference_price
-        Skalierung der Kurve: Nachfrage, die sich bei ``shadow_price == reference_shadow_price``
-        ergeben würde (Verschiebung der Kurve; in der Simulation u. a. Wachstum pro Periode).
+        Nachfragemenge bei Referenzpreis (Skalierung / Kurvenverschiebung; in der Simulation u. a. Wachstum).
     reference_shadow_price
         Referenz-Schattenpreis (typisch Start-Schattenpreis nach EcuJ-Normierung), > 0.
     price_elasticity
@@ -27,14 +29,14 @@ from __future__ import annotations
 
 
 # Implementierung aktuell isoelastisch: konstante Preiselastizität ``price_elasticity`` entlang der Kurve.
-def demand_quantity(
+def consumption_quantity(
     shadow_price: float,
-    demand__quantity_at_reference_price: float,
+    demand_at_reference_price: float,
     reference_shadow_price: float,
     price_elasticity: float,
 ) -> float:
     """
-    Nachgefragte Menge zum gegebenen ``shadow_price``.
+    Nachfrage- bzw. Konsummenge zum gegebenen ``shadow_price`` (isoelastische Kurve).
 
     Rechnung: ``demand_at_reference_price * (shadow_price/reference_shadow_price)**price_elasticity``.
     """
@@ -46,13 +48,14 @@ def demand_quantity(
         raise ValueError(
             "price_elasticity muss für fallende Nachfrage negativ sein (< 0)."
         )
-    return demand__quantity_at_reference_price * (
+    quantity = demand_at_reference_price * (
         shadow_price / reference_shadow_price
     ) ** price_elasticity
+    return quantity
 
 
 if __name__ == "__main__":
-    # Smoke: shadow_price hoch → nachgefragte Menge sinkt (price_elasticity < 0)
-    d1 = demand_quantity(1.0, 100.0, 1.0, -0.5)
-    d2 = demand_quantity(2.0, 100.0, 1.0, -0.5)
+    # Smoke: shadow_price hoch → Konsummenge sinkt (price_elasticity < 0)
+    d1 = consumption_quantity(1.0, 100.0, 1.0, -0.5)
+    d2 = consumption_quantity(2.0, 100.0, 1.0, -0.5)
     assert d2 < d1, (d1, d2)

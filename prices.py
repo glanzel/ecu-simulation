@@ -8,7 +8,7 @@ liegt sie darunter, werden die Preise **hoch**skaliert, bis die Summe die Unterg
 
 Preisfindung (in ``estimate_next_prices_from_timeline``): ausschließlich aus der
 ``ConsumptionTimeline``. Dieses Modul kennt **keine** Nachfragefunktion und importiert
-``demand`` nicht — die Simulation liefert beobachtete Verbrauchsdaten.
+das Paket ``demand`` nicht — die Simulation liefert beobachtete Konsumdaten.
 """
 
 from __future__ import annotations

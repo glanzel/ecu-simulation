@@ -29,6 +29,22 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=1.0,
         help="Multiplikativer Nachfrage-Faktor pro Periode (nur CO₂)",
     )
+    p.add_argument(
+        "--demand-noise-std",
+        type=float,
+        default=None,
+        metavar="σ",
+        help=(
+            "Std.-Abw. im Log-Raum für Rauschen auf demand_at_reference_price pro Periode "
+            "(nach Wachstum); 0 = aus. Standard aus Konfiguration (typ. 0,3)."
+        ),
+    )
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Zufalls-Seed für reproduzierbare Läufe (optional).",
+    )
     return p.parse_args(argv)
 
 
@@ -37,6 +53,10 @@ def main(argv: list[str] | None = None) -> int:
     cfg: SimulationConfig = default_config()
     if args.ecu is not None:
         cfg.ecu_per_year = args.ecu
+    if args.demand_noise_std is not None:
+        cfg.demand_at_reference_price_log_noise_std = args.demand_noise_std
+    if args.seed is not None:
+        cfg.random_seed = args.seed
     growth = {k: 1.0 for k in BOUNDARY_KEYS}
     growth["co2"] = args.growth_co2
     results = run_simulation(cfg, args.periods, demand_growth_per_period=growth)
