@@ -1,9 +1,8 @@
 """
-Zeitschritt-Simulation: Gleichgewichts-Schattenpreise, Tauschkurs, Nachfrage vs. VEJ.
+Zeitschritt-Simulation: Gleichgewichts-Schattenpreise, Tauschkurs, Konsum vs. VEJ.
 
-Eine eventuelle reale Überschreitung planetarer Grenzen wird hier nicht abgebildet:
-Die Simulation arbeitet mit den aus AG/VK/RZ abgeleiteten VEJ als Obergrenzen und der
-modellierten Nachfrage — nicht mit „aktueller“ globaler Überschreitung als Eingang.
+Grenzenwerte als ``dict[str, float]`` (Schlüssel ``BOUNDARY_KEYS``); Beobachtungen als
+``ConsumptionInterval`` / ``ConsumptionTimeline``.
 """
 
 from __future__ import annotations
@@ -18,12 +17,13 @@ from ecu_simulation.demand import consumption_quantity
 from ecu_simulation.exchange import rates_from_prices
 from ecu_simulation.observations import (
     DAYS_PER_YEAR,
+    ConsumptionInterval,
     ConsumptionTimeline,
-    consumption_interval_from_observation,
 )
 from ecu_simulation.planetary_constants import ALL_BOUNDARIES, BoundaryConstants
 from ecu_simulation.prices import (
     bundle_value,
+    consumption_all_below_vej,
     estimate_next_prices_from_timeline,
     enforce_ecu_floor,
     finalize_new_prices_on_last_interval,
@@ -48,32 +48,33 @@ class PeriodResult:
     """Mittel aus min(consumption/VEJ, 1) über die drei Grenzen."""
     ecu_per_unit: dict[str, float]
     unit_per_ecu: dict[str, float]
-    # D_i(p_ref): Skalierung der isoelastischen Kurve (wächst mit Wachstumsfaktoren pro Periode)
     demand_at_reference_price: dict[str, float]
     consumption_timeline: ConsumptionTimeline
     """Verbrauchsbeobachtungen dieser Periode (Gleichgewichtsschritte)."""
 
 
-def build_vej_map() -> dict[str, float]:
-    return {b.key: compute_vej(b.AG, b.VK, b.RZ) for b in ALL_BOUNDARIES}
+def build_vej_bundle() -> dict[str, float]:
+    out: dict[str, float] = {}
+    for b in ALL_BOUNDARIES:
+        out[b.key] = compute_vej(b.AG, b.VK, b.RZ)
+    return out
 
 
 def _make_consumption_closure(
-    vej: dict[str, float],
     demand_at_reference_price: dict[str, float],
     reference_shadow_price: dict[str, float],
     price_elasticity: dict[str, float],
 ):
-    def consumption_at_prices(prices: dict[str, float]) -> dict[str, float]:
-        return {
-            k: consumption_quantity(
-                prices[k],
+    def consumption_at_prices(shadow: dict[str, float]) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for k in BOUNDARY_KEYS:
+            out[k] = consumption_quantity(
+                shadow[k],
                 demand_at_reference_price[k],
                 reference_shadow_price[k],
                 price_elasticity[k],
             )
-            for k in BOUNDARY_KEYS
-        }
+        return out
 
     return consumption_at_prices
 
@@ -87,12 +88,8 @@ def run_equilibrium_prices(
 ) -> tuple[dict[str, float], dict[str, float], ConsumptionTimeline]:
     """
     Sucht (p, consumption) mit consumption_i ≤ VEJ_i und Σ p_i·VEJ_i ≥ ecu_floor.
-
-    **Nur hier** wird die modellierte Konsum-/Nachfragemenge ausgewertet (``realized_consumption``).
-    Beobachtungen landen in ``ConsumptionTimeline``; die Preislogik liest nur diese Timeline
-    und setzt ``new_price`` auf den Records (siehe ``ecu_simulation.prices``).
     """
-    timeline: ConsumptionTimeline = []
+    timeline = ConsumptionTimeline()
     step = 0
     p = prices_from_weights(vej, ecu_floor, initial_weights_uniform(len(BOUNDARY_KEYS)))
     p = scale_to_ecu_budget(p, vej, ecu_floor)
@@ -100,50 +97,51 @@ def run_equilibrium_prices(
     tol = cfg.tolerance
     consumption = realized_consumption(p)
     timeline.append(
-        consumption_interval_from_observation(step, zeitraum_days, p, consumption, vej),
+        ConsumptionInterval.from_observation(step, zeitraum_days, p, consumption, vej),
     )
     step += 1
 
-    if all(consumption[k] <= vej[k] + tol for k in BOUNDARY_KEYS):
+    if consumption_all_below_vej(consumption, vej, tol):
         p = enforce_ecu_floor(p, vej, ecu_floor, tol)
         finalize_new_prices_on_last_interval(timeline, p)
         consumption = realized_consumption(p)
         timeline.append(
-            consumption_interval_from_observation(step, zeitraum_days, p, consumption, vej),
+            ConsumptionInterval.from_observation(step, zeitraum_days, p, consumption, vej),
         )
         return p, consumption, timeline
 
     for _ in range(cfg.max_price_iterations):
-        p_next = estimate_next_prices_from_timeline(timeline, vej, ecu_floor, cfg)
-        last_prices = {r.control_variable_key: r.price for r in timeline[-1].records}
+        p_next = estimate_next_prices_from_timeline(timeline, ecu_floor, cfg)
+        last_prices = timeline.last.shadow_prices_map()
         unchanged = all(
-            abs(p_next[k] - last_prices[k]) <= tol * max(1.0, abs(last_prices[k]))
+            abs(p_next[k] - last_prices[k])
+            <= tol * max(1.0, abs(last_prices[k]))
             for k in BOUNDARY_KEYS
         )
         consumption = realized_consumption(p_next)
         timeline.append(
-            consumption_interval_from_observation(step, zeitraum_days, p_next, consumption, vej),
+            ConsumptionInterval.from_observation(step, zeitraum_days, p_next, consumption, vej),
         )
         step += 1
 
-        if all(consumption[k] <= vej[k] + tol for k in BOUNDARY_KEYS):
+        if consumption_all_below_vej(consumption, vej, tol):
             p = enforce_ecu_floor(p_next, vej, ecu_floor, tol)
             finalize_new_prices_on_last_interval(timeline, p)
             consumption = realized_consumption(p)
             timeline.append(
-                consumption_interval_from_observation(step, zeitraum_days, p, consumption, vej),
+                ConsumptionInterval.from_observation(step, zeitraum_days, p, consumption, vej),
             )
             return p, consumption, timeline
 
         if unchanged:
             break
 
-    last_p = {r.control_variable_key: r.price for r in timeline[-1].records}
+    last_p = timeline.last.shadow_prices_map()
     p = enforce_ecu_floor(last_p, vej, ecu_floor, tol)
     finalize_new_prices_on_last_interval(timeline, p)
     consumption = realized_consumption(p)
     timeline.append(
-        consumption_interval_from_observation(step, zeitraum_days, p, consumption, vej),
+        ConsumptionInterval.from_observation(step, zeitraum_days, p, consumption, vej),
     )
     return p, consumption, timeline
 
@@ -157,7 +155,7 @@ def run_period(
     ecu_floor: float,
 ) -> tuple[dict[str, float], dict[str, float], float, ConsumptionTimeline]:
     realized_consumption = _make_consumption_closure(
-        vej, demand_at_reference_price, reference_shadow_price, price_elasticity
+        demand_at_reference_price, reference_shadow_price, price_elasticity
     )
     p, consumption, timeline = run_equilibrium_prices(
         vej, ecu_floor, cfg, realized_consumption, DAYS_PER_YEAR
@@ -168,7 +166,10 @@ def run_period(
 
 def mean_boundary_utilization(consumption: dict[str, float], vej: dict[str, float]) -> float:
     """Durchschnitt der Auslastung pro Grenze (consumption/VEJ, maximal 1)."""
-    parts = [min(1.0, consumption[k] / vej[k]) if vej[k] > 0 else 0.0 for k in BOUNDARY_KEYS]
+    parts = [
+        min(1.0, consumption[k] / vej[k]) if vej[k] > 0 else 0.0
+        for k in BOUNDARY_KEYS
+    ]
     return sum(parts) / len(parts)
 
 
@@ -186,24 +187,18 @@ def run_simulation(
 ) -> list[PeriodResult]:
     """
     periods: Anzahl Zeitschritte.
-    demand_growth_per_period: optional multiplikativer Faktor pro Grenze pro Periode (z. B. nur co2).
-
-    Nach Wachstum pro Periode (und vor ``run_period``): optional multiplikatives Log-Rauschen
-    auf ``demand_at_reference_price`` (siehe ``demand_at_reference_price_log_noise_std``).
+    demand_growth_per_period: multiplikativer Faktor pro Grenze pro Periode (z. B. nur co2 > 1).
     """
     if cfg.random_seed is not None:
         random.seed(cfg.random_seed)
 
-    vej = build_vej_map()
+    vej = build_vej_bundle()
     price_elasticity = cfg.resolved_epsilon()
     frac = cfg.resolved_d0_fraction()
-    demand_at_reference_price: dict[str, float] = {
-        k: frac[k] * vej[k] for k in BOUNDARY_KEYS
-    }
+    demand_at_reference_price = {k: frac[k] * vej[k] for k in BOUNDARY_KEYS}
     growth = demand_growth_per_period or {k: 1.0 for k in BOUNDARY_KEYS}
 
     ecu_current = cfg.ecu_per_year
-    # Referenzpreise einmalig aus Start-Skalierung (Start-EcuJ)
     p_start = prices_from_weights(vej, ecu_current, initial_weights_uniform(len(BOUNDARY_KEYS)))
     p_start = scale_to_ecu_budget(p_start, vej, ecu_current)
     reference_shadow_price = cfg.resolved_p_ref(p_start)
@@ -211,13 +206,12 @@ def run_simulation(
     results: list[PeriodResult] = []
     noise_std = cfg.demand_at_reference_price_log_noise_std
     for t in range(periods):
-        for k in BOUNDARY_KEYS:
-            demand_at_reference_price[k] *= growth.get(k, 1.0)
+        demand_at_reference_price = {
+            k: demand_at_reference_price[k] * growth[k] for k in BOUNDARY_KEYS
+        }
         if noise_std > 0.0:
             for k in BOUNDARY_KEYS:
-                demand_at_reference_price[k] *= math.exp(
-                    random.gauss(0.0, noise_std)
-                )
+                demand_at_reference_price[k] *= math.exp(random.gauss(0.0, noise_std))
         ecu_floor = ecu_current
         p, consumption, bv, consumption_timeline = run_period(
             vej,

@@ -5,8 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping
 
-# Reihenfolge der Grenzen (Schlüssel)
-BOUNDARY_KEYS: tuple[str, ...] = ("co2", "hanpp", "nitrogen")
+from ecu_simulation.observations import BOUNDARY_KEYS
 
 
 @dataclass
@@ -40,12 +39,12 @@ class SimulationConfig:
     # Ein Schritt p_neu/p_alt = (VEJ/D)^(1/η̂) wird auf dieses Intervall begrenzt
     price_step_multiplier_clip: tuple[float, float] = (1.01, 2.5)
 
-    def resolved_p_ref(self, initial_prices: Mapping[str, float]) -> dict[str, float]:
+    def resolved_p_ref(self, initial_prices: dict[str, float]) -> dict[str, float]:
         """p_ref: explizit oder Fallback auf initial normierte Schattenpreise."""
-        out = {k: initial_prices[k] for k in BOUNDARY_KEYS}
+        out = dict(initial_prices)
         for k in BOUNDARY_KEYS:
             if k in self.p_ref and self.p_ref[k] > 0:
-                out[k] = self.p_ref[k]
+                out[k] = float(self.p_ref[k])
         return out
 
     def resolved_epsilon(self) -> dict[str, float]:
