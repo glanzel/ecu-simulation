@@ -11,8 +11,8 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
-from ecu_simulation.config import BOUNDARY_KEYS, SimulationConfig
-from ecu_simulation.observations import ConsumptionTimeline
+from ecu_simulation.logic.observations import BOUNDARY_KEYS, ConsumptionTimeline
+from ecu_simulation.simulation.config import SimulationConfig
 
 
 def initial_weights_uniform(n: int) -> list[float]:

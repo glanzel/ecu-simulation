@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ecu_simulation.planetary_constants import ALL_BOUNDARIES
+from ecu_simulation.logic.planetary_constants import ALL_BOUNDARIES
 
 # Reihenfolge der Grenzen (Schlüssel) — zentral hier, damit keine Zirkelimporte mit ``config`` nötig sind
 BOUNDARY_KEYS: tuple[str, ...] = ("co2", "hanpp", "nitrogen")
