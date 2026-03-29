@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping
 
-from ecu_simulation.observations import BOUNDARY_KEYS
+from ecu_simulation.logic.observations import BOUNDARY_KEYS
 
 
 @dataclass

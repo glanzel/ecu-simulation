@@ -118,7 +118,7 @@ NITROGEN = BoundaryConstants(
     literature_note=(
         "Grenze 69 Tg N a⁻¹: Steffen et al. (2015); SRC „Ref Figure 3.txt“ "
         "(Biogeochemical.N, Spalte Boundary). VK=0: kein nennenswerter "
-        "anthropogener Haber-Bosch-Bezug vor Industrialisierung (Naherung)."
+        "anthropogener Haber-Bosch-Bezug vor Industrialisierung (Näherung)."
     ),
     is_example=False,
 )
