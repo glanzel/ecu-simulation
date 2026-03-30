@@ -1,9 +1,12 @@
 """
-Schattenpreise (ECU pro Einheit Kontrollvariable) mit Kopplung an EcuJ:
+Schattenpreise (ECU pro Einheit Kontrollvariable) mit Kopplung an die ECU-Jahresbilanz:
 
   EcuJ ≤ Σ_i p_i · VEJ_i
 
-Werte pro Grenze: ``dict[str, float]`` mit Schlüsseln aus ``BOUNDARY_KEYS``.
+Konvention: Pro Grenze ein ``float`` in ``dict[str, float]``; Schlüssel entsprechen
+``BOUNDARY_KEYS``. Hilfsfunktionen normieren/skalierten Preise, leiten Updates aus
+der Verbrauchs-Timeline ab, passen das verteilte ECU-Jahresvolumen an die Auslastung
+an oder prüfen VEJ-Einhaltung.
 """
 
 from __future__ import annotations
@@ -16,7 +19,11 @@ from ecu_simulation.simulation.config import SimulationConfig
 
 
 def initial_weights_uniform(n: int) -> list[float]:
-    """Gleichverteilung der Gewichte (für Start-Schattenpreise)."""
+    """
+    Erzeugt ``n`` gleich große Gewichte (Summe 1), z. B. für Start-Schattenpreise.
+
+    Jedes Gewicht ist ``1/n``.
+    """
     return [1.0 / n] * n
 
 
@@ -26,28 +33,39 @@ def prices_from_weights(
     weights: Sequence[float],
 ) -> dict[str, float]:
     """
-    Initialer Schattenpreisvektor aus Gewichten:
+    Baut den Start-Schattenpreis je Grenze aus relativen Gewichten und Jahres-ECU-Budget.
 
-        ``p_i = w_i * ecu_per_year / VEJ_i`` mit ``Σ w_i = 1``.
+    Formel pro Grenze *i*: ``p_i = w_i · ecu_per_year / VEJ_i``, wobei die Eingabe-
+    gewichte zuerst auf Summe 1 normiert werden (``Σ w_i = 1``).
+
+    ``ecu_per_year`` ist das Ziel für die gewichtete Summe ``Σ_i p_i · VEJ_i`` nach
+    Normierung der Gewichte (vor weiterer Skalierung durch andere Schritte).
     """
-    keys = list(BOUNDARY_KEYS)
-    if len(weights) != len(keys):
+    boundary_order = list(BOUNDARY_KEYS)
+    if len(weights) != len(boundary_order):
         raise ValueError("weights passt nicht zu Grenzen.")
-    s = sum(weights)
-    if s <= 0:
+    weight_sum = sum(weights)
+    if weight_sum <= 0:
         raise ValueError("Gewichte müssen positiv summieren.")
-    w = [wi / s for wi in weights]
-    out: dict[str, float] = {}
-    for i, k in enumerate(keys):
-        v = vej[k]
-        if v <= 0:
-            raise ValueError(f"VEJ für {k} muss positiv sein.")
-        out[k] = w[i] * ecu_per_year / v
-    return out
+    normalized_weights = [wi / weight_sum for wi in weights]
+    shadow_prices: dict[str, float] = {}
+    for index, boundary_key in enumerate(boundary_order):
+        vej_at_boundary = vej[boundary_key]
+        if vej_at_boundary <= 0:
+            raise ValueError(f"VEJ für {boundary_key} muss positiv sein.")
+        shadow_prices[boundary_key] = (
+            normalized_weights[index] * ecu_per_year / vej_at_boundary
+        )
+    return shadow_prices
 
 
 def bundle_value(prices: dict[str, float], vej: dict[str, float]) -> float:
-    """``Σ_i p_i * VEJ_i``."""
+    """
+    Wert des VEJ-Bündels zu Schattenpreisen: ``Σ_i p_i · VEJ_i`` (ECU pro Jahr).
+
+    Entspricht dem linken Teil der ECU-Jahresbilanz, wenn ``p`` die Schattenpreise
+    und ``VEJ`` die Grenzen pro Einheit sind.
+    """
     return sum(prices[k] * vej[k] for k in BOUNDARY_KEYS)
 
 
@@ -56,12 +74,18 @@ def scale_to_ecu_budget(
     vej: dict[str, float],
     ecu_per_year: float,
 ) -> dict[str, float]:
-    """Skaliert alle ``p`` multiplikativ, sodass ``Σ p_i·VEJ_i = ecu_per_year``."""
-    total = bundle_value(prices, vej)
-    if total <= 0:
+    """
+    Multipliziert alle Schattenpreise mit einem gemeinsamen Faktor, sodass
+    ``Σ_i p_i · VEJ_i = ecu_per_year`` gilt.
+
+    Nützlich, um nach relativen Preisänderungen das ECU-Jahresbudget exakt
+    einzuhalten.
+    """
+    bundle_total = bundle_value(prices, vej)
+    if bundle_total <= 0:
         raise ValueError("Summe p·VEJ muss positiv sein.")
-    s = ecu_per_year / total
-    return {k: prices[k] * s for k in BOUNDARY_KEYS}
+    scale_factor = ecu_per_year / bundle_total
+    return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
 
 def enforce_ecu_floor(
@@ -71,14 +95,33 @@ def enforce_ecu_floor(
     tol: float = 1e-12,
 ) -> dict[str, float]:
     """
-    Stellt die EcuJ-Untergrenze sicher (Slack erlaubt, wenn Summe schon ≥ ecu_floor).
+    Sichert die Mindestbilanz ``Σ p·VEJ ≥ ecu_floor`` (numerisch mit Toleranz).
+
+    Liegt die Bündelsumme bereits bei mindestens ``ecu_floor`` (ggf. Toleranz),
+    bleiben die Preise unverändert (Überschuss möglich). Liegt sie darunter, wird
+    wie bei ``scale_to_ecu_budget`` auf genau ``ecu_floor`` hochskaliert.
     """
-    total = bundle_value(prices, vej)
-    if total <= 0:
+    bundle_total = bundle_value(prices, vej)
+    if bundle_total <= 0:
         raise ValueError("Summe p·VEJ muss positiv sein.")
-    if total + tol < ecu_floor:
+    if bundle_total + tol < ecu_floor:
         return scale_to_ecu_budget(prices, vej, ecu_floor)
     return {k: prices[k] for k in BOUNDARY_KEYS}
+
+
+def next_ecu_budget(current: float, mean_u: float, cfg: SimulationConfig) -> float:
+    """
+    Nächstes verteiltes ECU-Jahresvolumen (EcuJ) aus aktuellem Wert und mittlerer Auslastung.
+
+    Steigt die mittlere Auslastung über ``utilization_target``, wird das Volumen
+    gesenkt; fällt sie darunter, erhöht. Anschließend Klemmung auf ``ecu_min`` /
+    ``ecu_max``.
+
+    Formel: ``nächstes = current * (1 - kappa * (mean_u - utilization_target))``.
+    """
+    factor = 1.0 - cfg.ecu_adjustment_kappa * (mean_u - cfg.utilization_target)
+    nxt = current * factor
+    return max(cfg.ecu_min, min(cfg.ecu_max, nxt))
 
 
 def consumption_all_below_vej(
@@ -86,38 +129,50 @@ def consumption_all_below_vej(
     vej: dict[str, float],
     tol: float,
 ) -> bool:
-    """True, wenn ``consumption_i ≤ vej_i + tol`` für alle Grenzen."""
+    """
+    Prüft, ob der Verbrauch an jeder Grenze die VEJ nicht übersteigt (mit Toleranz).
+
+    Gibt ``True`` zurück, wenn für alle Grenzen ``consumption_i ≤ vej_i + tol`` gilt.
+    """
     return all(consumption[k] <= vej[k] + tol for k in BOUNDARY_KEYS)
 
 
 def _implied_elasticity_from_history(
-    p_prev: float,
-    p_last: float,
-    consumption_prev: float,
+    price_previous: float,
+    price_last: float,
+    consumption_previous: float,
     consumption_last: float,
     eta_clip: tuple[float, float],
 ) -> float | None:
-    """Lokale numerische Elastizität ``d ln(consumption) / d ln(p)``."""
+    """
+    Schätzt die (negative) Preiselastizität aus zwei aufeinanderfolgenden Intervallen.
+
+    Verwendet ``ln(Verbrauch_last/Verbrauch_vorher) / ln(Preis_last/Preis_vorher)``.
+    Liefert ``None``, wenn die Voraussetzungen fehlen (nicht positive Werte,
+    verschwindende Preisänderung) oder die Elastizität nicht negativ ist.
+
+    Das Ergebnis wird auf ``[eta_clip[0], eta_clip[1]]`` begrenzt.
+    """
     if (
-        p_prev <= 0
-        or p_last <= 0
-        or consumption_prev <= 0
+        price_previous <= 0
+        or price_last <= 0
+        or consumption_previous <= 0
         or consumption_last <= 0
     ):
         return None
-    lp = math.log(p_last / p_prev)
-    if abs(lp) < 1e-14:
+    log_price_ratio = math.log(price_last / price_previous)
+    if abs(log_price_ratio) < 1e-14:
         return None
-    lu = math.log(consumption_last / consumption_prev)
-    eta = lu / lp
-    if eta >= 0:
+    log_consumption_ratio = math.log(consumption_last / consumption_previous)
+    elasticity = log_consumption_ratio / log_price_ratio
+    if elasticity >= 0:
         return None
-    lo, hi = eta_clip
-    if eta < lo:
-        eta = lo
-    elif eta > hi:
-        eta = hi
-    return eta
+    eta_min, eta_max = eta_clip
+    if elasticity < eta_min:
+        elasticity = eta_min
+    elif elasticity > eta_max:
+        elasticity = eta_max
+    return elasticity
 
 
 def estimate_next_prices_from_timeline(
@@ -126,61 +181,88 @@ def estimate_next_prices_from_timeline(
     cfg: SimulationConfig,
 ) -> dict[str, float]:
     """
-    Nächster Preisvektor aus der Timeline; schreibt ``new_price`` ins letzte Intervall.
+    Leitet die Schattenpreise für das letzte Intervall aus Verlauf und Konfiguration ab.
 
-    VEJ und Preise stammen aus den ``ConsumptionRecord`` des letzten Intervalls.
+    Ausgangspunkt ist das **letzte** Intervall der Timeline (VEJ, bisherige Preise,
+    beobachteter Verbrauch). Liegt der Verbrauch überall unterhalb der VEJ, werden
+    die Preise nur noch so angepasst, dass ``enforce_ecu_floor`` die ECU-Untergrenze
+    einhält. Sonst wird pro Grenze mit Überschreitung der Preis erhöht: Standard ist
+    der Faktor ``price_bump``; wenn ein vorheriges Intervall existiert, kann eine
+    aus der Historie geschätzte negative Elastizität einen anderen Multiplikator
+    vorschlagen (geclippt). Anschließend wieder ``enforce_ecu_floor``.
+
+    Schreibt die ermittelten Preise per ``apply_new_prices_to_last`` ins letzte
+    Intervall und gibt denselben Vektor zurück.
     """
     if len(timeline) == 0:
         raise ValueError("timeline muss mindestens ein ConsumptionInterval enthalten.")
 
     last_interval = timeline.last
     tol = cfg.tolerance
-    bump = cfg.price_bump
+    default_price_multiplier = cfg.price_bump
 
     vej_last = {k: last_interval.vej_for(k) for k in BOUNDARY_KEYS}
-    p_last = {k: last_interval.price_for(k) for k in BOUNDARY_KEYS}
+    shadow_prices_last = {k: last_interval.price_for(k) for k in BOUNDARY_KEYS}
     consumption_last = {k: last_interval.consumption_for(k) for k in BOUNDARY_KEYS}
 
     if consumption_all_below_vej(consumption_last, vej_last, tol):
-        p_final = enforce_ecu_floor(p_last, vej_last, ecu_floor, tol)
+        final_prices = enforce_ecu_floor(
+            shadow_prices_last, vej_last, ecu_floor, tol
+        )
     else:
-        p_new = {k: p_last[k] for k in BOUNDARY_KEYS}
-        has_prev = len(timeline) >= 2
-        prev_interval = timeline[-2] if has_prev else None
+        candidate_prices = {k: shadow_prices_last[k] for k in BOUNDARY_KEYS}
+        has_previous_interval = len(timeline) >= 2
+        previous_interval = timeline[-2] if has_previous_interval else None
 
-        for k in BOUNDARY_KEYS:
-            if consumption_last[k] <= vej_last[k] + tol:
+        for boundary_key in BOUNDARY_KEYS:
+            if consumption_last[boundary_key] <= vej_last[boundary_key] + tol:
                 continue
 
-            mult = bump
-            if has_prev and prev_interval is not None:
-                p_prev = prev_interval.price_for(k)
-                consumption_prev = prev_interval.consumption_for(k)
+            price_multiplier = default_price_multiplier
+            if has_previous_interval and previous_interval is not None:
+                price_previous = previous_interval.price_for(boundary_key)
+                consumption_previous = previous_interval.consumption_for(boundary_key)
 
-                eta = _implied_elasticity_from_history(
-                    p_prev,
-                    p_last[k],
-                    consumption_prev,
-                    consumption_last[k],
+                implied_elasticity = _implied_elasticity_from_history(
+                    price_previous,
+                    shadow_prices_last[boundary_key],
+                    consumption_previous,
+                    consumption_last[boundary_key],
                     cfg.price_eta_clip,
                 )
-                if eta is not None:
-                    ratio_target = vej_last[k] / consumption_last[k]
-                    if 0.0 < ratio_target < 1.0:
-                        raw = math.exp(math.log(ratio_target) / eta)
-                        lo, hi = cfg.price_step_multiplier_clip
-                        mult = max(lo, min(hi, raw))
-            p_new[k] = p_new[k] * mult
+                if implied_elasticity is not None:
+                    vej_over_consumption = (
+                        vej_last[boundary_key] / consumption_last[boundary_key]
+                    )
+                    if 0.0 < vej_over_consumption < 1.0:
+                        multiplier_from_elasticity = math.exp(
+                            math.log(vej_over_consumption) / implied_elasticity
+                        )
+                        mult_min, mult_max = cfg.price_step_multiplier_clip
+                        price_multiplier = max(
+                            mult_min,
+                            min(mult_max, multiplier_from_elasticity),
+                        )
+            candidate_prices[boundary_key] = (
+                candidate_prices[boundary_key] * price_multiplier
+            )
 
-        p_final = enforce_ecu_floor(p_new, vej_last, ecu_floor, tol)
+        final_prices = enforce_ecu_floor(
+            candidate_prices, vej_last, ecu_floor, tol
+        )
 
-    timeline.apply_new_prices_to_last(p_final)
-    return p_final
+    timeline.apply_new_prices_to_last(final_prices)
+    return final_prices
 
 
 def finalize_new_prices_on_last_interval(
     timeline: ConsumptionTimeline,
     prices_after_enforce: dict[str, float],
 ) -> None:
-    """Setzt ``new_price`` auf dem letzten Intervall."""
+    """
+    Schreibt den abgeschlossenen Schattenpreisvektor nur auf das letzte Intervall.
+
+    Dient als dünne Hilfsfunktion um ``apply_new_prices_to_last``, wenn die Preise
+    bereits außerhalb dieser Datei berechnet wurden.
+    """
     timeline.apply_new_prices_to_last(prices_after_enforce)
