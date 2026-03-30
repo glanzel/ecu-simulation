@@ -27,6 +27,7 @@ from ecu_simulation.logic.prices import (
     enforce_ecu_floor,
     finalize_new_prices_on_last_interval,
     initial_weights_uniform,
+    next_ecu_budget,
     prices_from_weights,
     scale_to_ecu_budget,
 )
@@ -172,13 +173,6 @@ def mean_boundary_utilization(consumption: dict[str, float], vej: dict[str, floa
         for k in BOUNDARY_KEYS
     ]
     return sum(parts) / len(parts)
-
-
-def next_ecu_budget(current: float, mean_u: float, cfg: SimulationConfig) -> float:
-    """Steigt mittlere Auslastung → EcuJ senken; fällt sie → erhöhen."""
-    factor = 1.0 - cfg.ecu_adjustment_kappa * (mean_u - cfg.utilization_target)
-    nxt = current * factor
-    return max(cfg.ecu_min, min(cfg.ecu_max, nxt))
 
 
 def run_simulation(
