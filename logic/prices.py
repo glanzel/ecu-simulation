@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
+from ecu_simulation.logic.exchange import ExchangeRates, rates_from_prices
 from ecu_simulation.logic.observations import BOUNDARY_KEYS, ConsumptionTimeline
 from ecu_simulation.simulation.config import SimulationConfig
 
@@ -67,6 +68,28 @@ def bundle_value(prices: dict[str, float], vej: dict[str, float]) -> float:
     und ``VEJ`` die Grenzen pro Einheit sind.
     """
     return sum(prices[k] * vej[k] for k in BOUNDARY_KEYS)
+
+
+def initial_shadow_prices_for_ecu(vej: dict[str, float], ecu_floor: float) -> dict[str, float]:
+    """
+    Start-Schattenpreise normiert auf ``ecu_floor`` (Σ p·VEJ = ecu_floor).
+
+    Kombination aus gleichverteilten Gewichten und ``scale_to_ecu_budget``.
+    """
+    raw = prices_from_weights(vej, ecu_floor, initial_weights_uniform(len(BOUNDARY_KEYS)))
+    return scale_to_ecu_budget(raw, vej, ecu_floor)
+
+
+def reference_shadow_prices_for_demand(
+    cfg: SimulationConfig,
+    vej: dict[str, float],
+    ecu_floor: float,
+) -> dict[str, float]:
+    """
+    Referenzpreise für die Nachfragefunktion: Start-Schattenpreise, dann ``resolved_p_ref``.
+    """
+    initial = initial_shadow_prices_for_ecu(vej, ecu_floor)
+    return cfg.resolved_p_ref(initial)
 
 
 def scale_to_ecu_budget(
@@ -175,31 +198,21 @@ def _implied_elasticity_from_history(
     return elasticity
 
 
-def estimate_next_prices_from_timeline(
-    timeline: ConsumptionTimeline,
-    ecu_floor: float,
-    cfg: SimulationConfig,
-) -> dict[str, float]:
+def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str, float]:
     """
     Leitet die Schattenpreise für das letzte Intervall aus Verlauf und Konfiguration ab.
 
-    Ausgangspunkt ist das **letzte** Intervall der Timeline (VEJ, bisherige Preise,
-    beobachteter Verbrauch). Liegt der Verbrauch überall unterhalb der VEJ, werden
-    die Preise nur noch so angepasst, dass ``enforce_ecu_floor`` die ECU-Untergrenze
-    einhält. Sonst wird pro Grenze mit Überschreitung der Preis erhöht: Standard ist
-    der Faktor ``price_bump``; wenn ein vorheriges Intervall existiert, kann eine
-    aus der Historie geschätzte negative Elastizität einen anderen Multiplikator
-    vorschlagen (geclippt). Anschließend wieder ``enforce_ecu_floor``.
-
-    Schreibt die ermittelten Preise per ``apply_new_prices_to_last`` ins letzte
-    Intervall und gibt denselben Vektor zurück.
+    Nutzt ``timeline.ecu_floor`` und ``timeline.price_config``. Siehe
+    ``advance_shadow_prices`` als öffentliche Einstiegsschicht.
     """
     if len(timeline) == 0:
         raise ValueError("timeline muss mindestens ein ConsumptionInterval enthalten.")
 
+    price_cfg = timeline.price_config
+    ecu_floor = timeline.ecu_floor
     last_interval = timeline.last
-    tol = cfg.tolerance
-    default_price_multiplier = cfg.price_bump
+    tol = price_cfg.tolerance
+    default_price_multiplier = price_cfg.price_bump
 
     vej_last = {k: last_interval.vej_for(k) for k in BOUNDARY_KEYS}
     shadow_prices_last = {k: last_interval.price_for(k) for k in BOUNDARY_KEYS}
@@ -228,7 +241,7 @@ def estimate_next_prices_from_timeline(
                     shadow_prices_last[boundary_key],
                     consumption_previous,
                     consumption_last[boundary_key],
-                    cfg.price_eta_clip,
+                    price_cfg.price_eta_clip,
                 )
                 if implied_elasticity is not None:
                     vej_over_consumption = (
@@ -238,7 +251,7 @@ def estimate_next_prices_from_timeline(
                         multiplier_from_elasticity = math.exp(
                             math.log(vej_over_consumption) / implied_elasticity
                         )
-                        mult_min, mult_max = cfg.price_step_multiplier_clip
+                        mult_min, mult_max = price_cfg.price_step_multiplier_clip
                         price_multiplier = max(
                             mult_min,
                             min(mult_max, multiplier_from_elasticity),
@@ -253,6 +266,51 @@ def estimate_next_prices_from_timeline(
 
     timeline.apply_new_prices_to_last(final_prices)
     return final_prices
+
+
+def shadow_prices_adjusted_at_last_interval(timeline: ConsumptionTimeline) -> dict[str, float]:
+    """Liest die zuletzt geschätzten Schattenpreise (``new_price``) vom letzten Intervall."""
+    out: dict[str, float] = {}
+    for k in BOUNDARY_KEYS:
+        rec = timeline.last.record_for_key(k)
+        if rec.new_price is None:
+            raise ValueError(
+                "letzter ConsumptionRecord hat kein new_price — advance_shadow_prices zuerst aufrufen"
+            )
+        out[k] = rec.new_price
+    return out
+
+
+def exchange_rates_for_shadow_prices(prices: dict[str, float]) -> ExchangeRates:
+    """Tauschgrößen (ECU/Einheit) aus dem Schattenpreisvektor."""
+    return rates_from_prices(prices)
+
+
+def advance_shadow_prices(
+    timeline: ConsumptionTimeline,
+    vej: dict[str, float],
+) -> ConsumptionTimeline:
+    """
+    Legt die Schattenpreise fest, **bevor** in dieser Periode konsumiert wird.
+
+    - **Leere Timeline** (erstes Jahr): Startpreise über ``initial_shadow_prices_for_ecu``
+      (Schätzung auf Basis von VEJ und ``ecu_floor``), kein vorheriger Konsum.
+    - **Sonst**: ``estimate_next_prices_from_timeline`` aus dem letzten Intervall;
+      schreibt ``new_price`` auf dem letzten Intervall.
+
+    Setzt ``timeline.prices_for_next_consumption`` — die Simulation liest das und
+    erzeugt genau **einen** Konsum pro Periode.
+    """
+    if len(timeline) == 0:
+        timeline.prices_for_next_consumption = initial_shadow_prices_for_ecu(
+            vej, timeline.ecu_floor
+        )
+        return timeline
+    estimate_next_prices_from_timeline(timeline)
+    timeline.prices_for_next_consumption = shadow_prices_adjusted_at_last_interval(
+        timeline
+    )
+    return timeline
 
 
 def finalize_new_prices_on_last_interval(
