@@ -200,10 +200,10 @@ def _implied_elasticity_from_history(
 
 def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str, float]:
     """
-    Leitet die Schattenpreise für das letzte Intervall aus Verlauf und Konfiguration ab.
+    Leitet die Schattenpreise für den **nächsten** Konsum aus dem letzten Intervall ab.
 
-    Nutzt ``timeline.ecu_floor`` und ``timeline.price_config``. Siehe
-    ``advance_shadow_prices`` als öffentliche Einstiegsschicht.
+    Nutzt ``timeline.ecu_floor`` und ``timeline.price_config``. Rückgabe wird von
+    ``advance_shadow_prices`` in ``prices_for_next_consumption`` übernommen.
     """
     if len(timeline) == 0:
         raise ValueError("timeline muss mindestens ein ConsumptionInterval enthalten.")
@@ -264,21 +264,7 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
             candidate_prices, vej_last, ecu_floor, tol
         )
 
-    timeline.apply_new_prices_to_last(final_prices)
     return final_prices
-
-
-def shadow_prices_adjusted_at_last_interval(timeline: ConsumptionTimeline) -> dict[str, float]:
-    """Liest die zuletzt geschätzten Schattenpreise (``new_price``) vom letzten Intervall."""
-    out: dict[str, float] = {}
-    for k in BOUNDARY_KEYS:
-        rec = timeline.last.record_for_key(k)
-        if rec.new_price is None:
-            raise ValueError(
-                "letzter ConsumptionRecord hat kein new_price — advance_shadow_prices zuerst aufrufen"
-            )
-        out[k] = rec.new_price
-    return out
 
 
 def exchange_rates_for_shadow_prices(prices: dict[str, float]) -> ExchangeRates:
@@ -295,8 +281,7 @@ def advance_shadow_prices(
 
     - **Leere Timeline** (erstes Jahr): Startpreise über ``initial_shadow_prices_for_ecu``
       (Schätzung auf Basis von VEJ und ``ecu_floor``), kein vorheriger Konsum.
-    - **Sonst**: ``estimate_next_prices_from_timeline`` aus dem letzten Intervall;
-      schreibt ``new_price`` auf dem letzten Intervall.
+    - **Sonst**: ``estimate_next_prices_from_timeline`` aus dem letzten Intervall.
 
     Setzt ``timeline.prices_for_next_consumption`` — die Simulation liest das und
     erzeugt genau **einen** Konsum pro Periode.
@@ -306,21 +291,7 @@ def advance_shadow_prices(
             vej, timeline.ecu_floor
         )
         return timeline
-    estimate_next_prices_from_timeline(timeline)
-    timeline.prices_for_next_consumption = shadow_prices_adjusted_at_last_interval(
+    timeline.prices_for_next_consumption = estimate_next_prices_from_timeline(
         timeline
     )
     return timeline
-
-
-def finalize_new_prices_on_last_interval(
-    timeline: ConsumptionTimeline,
-    prices_after_enforce: dict[str, float],
-) -> None:
-    """
-    Schreibt den abgeschlossenen Schattenpreisvektor nur auf das letzte Intervall.
-
-    Dient als dünne Hilfsfunktion um ``apply_new_prices_to_last``, wenn die Preise
-    bereits außerhalb dieser Datei berechnet wurden.
-    """
-    timeline.apply_new_prices_to_last(prices_after_enforce)
