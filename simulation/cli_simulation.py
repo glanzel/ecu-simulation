@@ -13,26 +13,68 @@ from ecu_simulation.logic.planetary_constants import ALL_BOUNDARIES, BoundaryCon
 from ecu_simulation.simulation.config import SimulationConfig, default_config
 from ecu_simulation.simulation.simulation import PeriodResult, run_simulation
 
+_GROWTH_ORDER = ", ".join(BOUNDARY_KEYS)
+
+
+def _parse_comma_floats(s: str, n: int, label: str) -> list[float]:
+    """Parst ``n`` durch Komma getrennte Fließkommazahlen (Whitespace erlaubt)."""
+    parts = [p.strip() for p in s.split(",") if p.strip() != ""]
+    if len(parts) != n:
+        raise SystemExit(
+            f"{label}: genau {n} Werte erwartet (Reihenfolge: {_GROWTH_ORDER}), "
+            f"gefunden: {len(parts)}."
+        )
+    out: list[float] = []
+    for raw in parts:
+        try:
+            out.append(float(raw))
+        except ValueError as e:
+            raise SystemExit(f"{label}: keine Zahl: {raw!r}") from e
+    return out
+
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="ECU-Terminalsimulation")
-    p.add_argument("--ecu", type=float, default=None, help="Start-EcuJ pro Jahr")
+    p = argparse.ArgumentParser(
+        description="ECU-Terminalsimulation",
+        epilog=(
+            f"Nachfrage-Wachstum: optional --growth mit drei Faktoren ({_GROWTH_ORDER}); "
+            "ohne Angabe bleibt der Faktor pro Grenze 1,0."
+        ),
+    )
+    p.add_argument("--ecu", type=float, default=None, help="EcuJ pro Jahr (Untergrenze Σ p·VEJ)")
     p.add_argument("--periods", type=int, default=20, help="Anzahl Perioden")
     p.add_argument(
-        "--growth-co2",
-        type=float,
-        dest="growth_co2",
-        default=1.0,
-        help="Multiplikativer Nachfrage-Faktor pro Periode (nur CO₂)",
+        "--growth",
+        type=str,
+        default=None,
+        metavar="LISTE",
+        help=(
+            f"Komma-getrennte multiplikative Nachfrage-Faktoren pro Periode für {_GROWTH_ORDER} "
+            "(drei Zahlen, z. B. 1.02,1,1). Ohne diese Option: Faktor 1,0 je Grenze."
+        ),
     )
     p.add_argument(
         "--demand-noise-std",
+        "--demand-noise",
         type=float,
         default=None,
+        dest="demand_noise_std",
         metavar="σ",
         help=(
-            "Std.-Abw. im Log-Raum für Rauschen auf demand_at_reference_price pro Periode "
-            "(nach Wachstum); 0 = aus. Standard aus Konfiguration (typ. 0,3)."
+            "Std.-Abw. im Log-Raum: demand_at_reference_price *= exp(N(0,σ²)) pro Grenze und Periode "
+            "(nach Wachstum). 0 = kein Rauschen. Standard aus Konfiguration (typ. 0,3), wenn nicht gesetzt."
+        ),
+    )
+    p.add_argument(
+        "--epsilon-noise-std",
+        "--elasticity-noise",
+        type=float,
+        default=None,
+        dest="epsilon_noise_std",
+        metavar="σ",
+        help=(
+            "Std.-Abw. im Log-Raum: ε_i *= exp(N(0,σ²)) pro Grenze und Periode (Basis aus Konfiguration). "
+            "0 = keine Schwankung. Standard 0."
         ),
     )
     p.add_argument(
@@ -102,7 +144,7 @@ def print_boundary_tables(results: list[PeriodResult]) -> None:
 
 
 def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) -> None:
-    """Kontenrahmen: EcuJ ≤ Σ p·VEJ; dynamisches EcuJ je nach mittlerer Auslastung."""
+    """Kontenrahmen: EcuJ ≤ Σ p·VEJ; EcuJ ist konstant (``ecu_per_year``)."""
     print(f"\n{'─' * 72}")
     print("  ECU-Menge und Kontenrahmen (alle Grenzen)")
     print(f"{'─' * 72}")
@@ -124,10 +166,9 @@ def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) ->
             f"{r.mean_utilization:10.4f}"
         )
     print(
-        f"Legende · Start-EcuJ (erste Periode Untergrenze) = {ecu_start:g}; "
+        f"Legende · EcuJ (Untergrenze, konstant) = {ecu_start:g}; "
         "es gilt **EcuJ ≤ Σ p_i·VEJ_i** (Spalte Slack ≥ 0). "
-        "Ø Auslastung = Mittel aus min(consumption/VEJ, 1); steigt sie über utilization_target, "
-        "wird die nächste Periode weniger EcuJ verteilt (und umgekehrt)."
+        "Ø Auslastung = Mittel aus min(consumption/VEJ, 1) (nur Anzeige; EcuJ wird nicht angepasst)."
     )
 
 
@@ -151,10 +192,7 @@ def print_report(
 ) -> None:
     keys = BOUNDARY_KEYS
     print("ECU-Terminalsimulation — Schattenpreise und Konsum je planetarer Grenze")
-    print(
-        f"Start-EcuJ = {cfg.ecu_per_year!r} · Ziel-Auslastung = {cfg.utilization_target!r} · "
-        f"κ = {cfg.ecu_adjustment_kappa!r}"
-    )
+    print(f"EcuJ (Untergrenze Σ p·VEJ, konstant) = {cfg.ecu_per_year!r}")
     print()
     print(
         "Symbole: consumption = modellierter Konsum (Nachfragemenge) · p = Schattenpreis · "
@@ -165,7 +203,7 @@ def print_report(
         "Kontenrahmen: **EcuJ ≤ Σ p_i·VEJ_i** (Untergrenze für den ECU-Wert der vollen VEJ); "
         "Slack erlaubt. Isoelastische Kurve: consumption_i = demand_at_reference_price_i·"
         "(p_i/p_ref_i)^ε; Preisfindung aus ConsumptionTimeline, Regler: consumption ≤ VEJ. "
-        "EcuJ pro Periode passt sich der mittleren Grenzen-Auslastung an."
+        "EcuJ bleibt konfiguriert; fehlende „Deckung“ wird durch gemeinsame Preisskalierung geschlossen."
     )
     print_boundary_tables(results)
     print_ecu_accounting_table(results, cfg.ecu_per_year)
@@ -185,10 +223,15 @@ def main(argv: list[str] | None = None) -> int:
         cfg.ecu_per_year = args.ecu
     if args.demand_noise_std is not None:
         cfg.demand_at_reference_price_log_noise_std = args.demand_noise_std
+    if args.epsilon_noise_std is not None:
+        cfg.epsilon_log_noise_std = args.epsilon_noise_std
     if args.seed is not None:
         cfg.random_seed = args.seed
-    growth = {k: 1.0 for k in BOUNDARY_KEYS}
-    growth["co2"] = args.growth_co2
+    if args.growth is not None:
+        vals = _parse_comma_floats(args.growth, len(BOUNDARY_KEYS), "--growth")
+        growth = {BOUNDARY_KEYS[i]: vals[i] for i in range(len(BOUNDARY_KEYS))}
+    else:
+        growth = {k: 1.0 for k in BOUNDARY_KEYS}
     results = run_simulation(cfg, args.periods, demand_growth_per_period=growth)
     print_report(results, cfg)
     return 0

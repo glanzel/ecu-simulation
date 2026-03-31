@@ -22,7 +22,6 @@ from ecu_simulation.logic.prices import (
     advance_shadow_prices,
     bundle_value,
     exchange_rates_for_shadow_prices,
-    next_ecu_budget,
     reference_shadow_prices_for_demand,
 )
 from ecu_simulation.logic.vej import compute_vej
@@ -133,25 +132,34 @@ def run_simulation(
         random.seed(cfg.random_seed)
 
     vej = build_vej_bundle()
-    price_elasticity = cfg.resolved_epsilon()
+    base_epsilon = cfg.resolved_epsilon()
     frac = cfg.resolved_d0_fraction()
     demand_at_reference_price = {k: frac[k] * vej[k] for k in BOUNDARY_KEYS}
     growth = demand_growth_per_period or {k: 1.0 for k in BOUNDARY_KEYS}
 
-    ecu_current = cfg.ecu_per_year
-    reference_shadow_price = reference_shadow_prices_for_demand(cfg, vej, ecu_current)
+    ecu_floor = cfg.ecu_per_year
+    reference_shadow_price = reference_shadow_prices_for_demand(cfg, vej, ecu_floor)
 
-    timeline = ConsumptionTimeline(ecu_floor=ecu_current, price_config=cfg.price)
+    timeline = ConsumptionTimeline(ecu_floor=ecu_floor, price_config=cfg.price)
     results: list[PeriodResult] = []
-    noise_std = cfg.demand_at_reference_price_log_noise_std
+    demand_noise_std = cfg.demand_at_reference_price_log_noise_std
+    epsilon_noise_std = cfg.epsilon_log_noise_std
     for t in range(periods):
         demand_at_reference_price = {
             k: demand_at_reference_price[k] * growth[k] for k in BOUNDARY_KEYS
         }
-        if noise_std > 0.0:
+        if demand_noise_std > 0.0:
             for k in BOUNDARY_KEYS:
-                demand_at_reference_price[k] *= math.exp(random.gauss(0.0, noise_std))
-        ecu_floor = ecu_current
+                demand_at_reference_price[k] *= math.exp(
+                    random.gauss(0.0, demand_noise_std)
+                )
+        if epsilon_noise_std > 0.0:
+            price_elasticity = {
+                k: base_epsilon[k] * math.exp(random.gauss(0.0, epsilon_noise_std))
+                for k in BOUNDARY_KEYS
+            }
+        else:
+            price_elasticity = dict(base_epsilon)
         p, consumption, bv = run_one_period(
             t + 1,
             timeline,
@@ -178,5 +186,4 @@ def run_simulation(
                 consumption_timeline=timeline,
             )
         )
-        ecu_current = next_ecu_budget(ecu_current, mean_u, cfg)
     return results

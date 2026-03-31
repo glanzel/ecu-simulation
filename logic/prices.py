@@ -4,9 +4,10 @@ Schattenpreise (ECU pro Einheit Kontrollvariable) mit Kopplung an die ECU-Jahres
   EcuJ ≤ Σ_i p_i · VEJ_i
 
 Konvention: Pro Grenze ein ``float`` in ``dict[str, float]``; Schlüssel entsprechen
-``BOUNDARY_KEYS``. Hilfsfunktionen normieren/skalierten Preise, leiten Updates aus
-der Verbrauchs-Timeline ab, passen das verteilte ECU-Jahresvolumen an die Auslastung
-an oder prüfen VEJ-Einhaltung.
+``BOUNDARY_KEYS``. Hilfsfunktionen skalieren Preise (u. a. ``enforce_ecu_floor``:
+gemeinsamer Faktor, sodass ``Σ p·VEJ`` die ECU-Untergrenze erreicht), leiten Updates
+aus der Verbrauchs-Timeline ab. Das verteilte ECU-Jahresvolumen (EcuJ) ist konfiguriert
+und wird **nicht** aus der Auslastung nachgeregelt.
 """
 
 from __future__ import annotations
@@ -89,21 +90,6 @@ def enforce_ecu_floor(
     if bundle_total + tol < ecu_floor:
         return scale_to_ecu_budget(prices, vej, ecu_floor)
     return {k: prices[k] for k in BOUNDARY_KEYS}
-
-
-def next_ecu_budget(current: float, mean_u: float, cfg: SimulationConfig) -> float:
-    """
-    Nächstes verteiltes ECU-Jahresvolumen (EcuJ) aus aktuellem Wert und mittlerer Auslastung.
-
-    Steigt die mittlere Auslastung über ``utilization_target``, wird das Volumen
-    gesenkt; fällt sie darunter, erhöht. Anschließend Klemmung auf ``ecu_min`` /
-    ``ecu_max``.
-
-    Formel: ``nächstes = current * (1 - kappa * (mean_u - utilization_target))``.
-    """
-    factor = 1.0 - cfg.ecu_adjustment_kappa * (mean_u - cfg.utilization_target)
-    nxt = current * factor
-    return max(cfg.ecu_min, min(cfg.ecu_max, nxt))
 
 
 def consumption_all_below_vej(

@@ -13,22 +13,19 @@ from ecu_simulation.logic.price_config import PriceConfig
 class SimulationConfig:
     """Start-EcuJ, dynamische Anpassung, Nachfrageparameter; Preislogik in ``price``."""
 
-    # Startwert für das verteilte ECU-Jahresvolumen (Untergrenze Σ p·VEJ wird daran gemessen)
+    # Verteiltes ECU-Jahresvolumen EcuJ (konstant): Untergrenze ``Σ p·VEJ ≥ ecu_per_year``
+    # wird ausschließlich über gemeinsame Preisskalierung erreicht, nicht durch Änderung von EcuJ.
     ecu_per_year: float = 1.0
-    # Mittlere Auslastung D/VEJ (je Grenze auf 1.0 gedeckelt): Sollwert — darüber wird EcuJ reduziert, darunter erhöht
-    utilization_target: float = 0.5
-    # Empfindlichkeit: ecu_neu = ecu * (1 - kappa * (mittlere_Auslastung - utilization_target))
-    ecu_adjustment_kappa: float = 0.25
-    ecu_min: float = 0.01
-    ecu_max: float = 1_000_000.0
     # Referenz-Schattenpreis p_ref,i (ECU/Einh.); Fallback: Start-Schattenpreis nach EcuJ-Normierung
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
     # Anteil f_i: D_i(p_ref) startet als f_i·VEJ_i (isoelastische Skalierung „bei Referenzpreis“)
     d0_fraction_of_vej: Mapping[str, float] = field(default_factory=dict)
-    # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(N(0, σ²)); σ in Log-Raum, typ. ~0,3 ≈ 30 % relative Schwankung
+    # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(N(0, σ²)); σ im Log-Raum, typ. ~0,3
     demand_at_reference_price_log_noise_std: float = 0.3
+    # Optional: pro Periode ε_i *= exp(N(0, σ²)) auf Basis von ``resolved_epsilon``; 0 = keine Schwankung
+    epsilon_log_noise_std: float = 0.0
     # Optional: RNG-Seed für reproduzierbare Läufe (None = nicht setzen)
     random_seed: int | None = None
     # Kybernetik der Schattenpreise (Schattenpreisfindung aus Timeline)
