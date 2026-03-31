@@ -23,7 +23,7 @@ python ecu_sim/main.py
 With options, for example:
 
 ```bash
-python ecu_sim/main.py --periods 10 --growth-co2 1.02 --ecu 1.0
+python ecu_sim/main.py --periods 10 --growth 1.02,1,1 --ecu 1.0
 ```
 
 Alternative entry point:
