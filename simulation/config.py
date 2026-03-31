@@ -1,4 +1,4 @@
-"""Laufzeit-Konfiguration: EcuJ, Referenzpreise, Elastizitäten, Nachfrage-Basis."""
+"""Laufzeit-Konfiguration: EcuJ, Referenzpreise, Elastizitäten, Nachfrage-Basis, Preis-Kybernetik."""
 
 from __future__ import annotations
 
@@ -6,11 +6,12 @@ from dataclasses import dataclass, field
 from typing import Mapping
 
 from ecu_simulation.logic.observations import BOUNDARY_KEYS
+from ecu_simulation.logic.price_config import PriceConfig
 
 
 @dataclass
 class SimulationConfig:
-    """Start-EcuJ, dynamische Anpassung, Nachfrageparameter."""
+    """Start-EcuJ, dynamische Anpassung, Nachfrageparameter; Preislogik in ``price``."""
 
     # Startwert für das verteilte ECU-Jahresvolumen (Untergrenze Σ p·VEJ wird daran gemessen)
     ecu_per_year: float = 1.0
@@ -30,14 +31,8 @@ class SimulationConfig:
     demand_at_reference_price_log_noise_std: float = 0.3
     # Optional: RNG-Seed für reproduzierbare Läufe (None = nicht setzen)
     random_seed: int | None = None
-    # Kybernetik (historische Preisfindung: nur beobachtete p, D)
-    price_bump: float = 1.08
-    max_price_iterations: int = 500
-    tolerance: float = 1e-9
-    # η̂ = Δln u / Δln p aus zwei Schritten; auf Intervall klemmen (numerisch / Plausibilität)
-    price_eta_clip: tuple[float, float] = (-12.0, -0.02)
-    # Ein Schritt p_neu/p_alt = (VEJ/D)^(1/η̂) wird auf dieses Intervall begrenzt
-    price_step_multiplier_clip: tuple[float, float] = (1.01, 2.5)
+    # Kybernetik der Schattenpreise (Schattenpreisfindung aus Timeline)
+    price: PriceConfig = field(default_factory=PriceConfig)
 
     def resolved_p_ref(self, initial_prices: dict[str, float]) -> dict[str, float]:
         """p_ref: explizit oder Fallback auf initial normierte Schattenpreise."""

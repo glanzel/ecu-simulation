@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ecu_simulation.logic.planetary_constants import ALL_BOUNDARIES
+from ecu_simulation.logic.price_config import PriceConfig
 
 # Reihenfolge der Grenzen (Schlüssel) — zentral hier, damit keine Zirkelimporte mit ``config`` nötig sind
 BOUNDARY_KEYS: tuple[str, ...] = ("co2", "hanpp", "nitrogen")
@@ -45,6 +46,10 @@ class ConsumptionRecord:
     """Schattenpreis, zu dem ``value`` beobachtet wurde."""
     new_price: float | None = None
     """Nur von der Preisberechnung gesetzt: Vorschlag für den nächsten Schattenpreis (nach EcuJ-Boden)."""
+    demand_at_reference_price: float | None = None
+    """Nachfrage-Skalierung bei p_ref für diese Grenze (optional, pro Beobachtung)."""
+    reference_shadow_price: float | None = None
+    """Referenz-Schattenpreis p_ref (optional, pro Beobachtung)."""
 
 
 @dataclass
@@ -97,10 +102,14 @@ class ConsumptionInterval:
         shadow_prices: dict[str, float],
         consumption: dict[str, float],
         vej: dict[str, float],
+        demand_at_reference_price: dict[str, float] | None = None,
+        reference_shadow_price: dict[str, float] | None = None,
     ) -> ConsumptionInterval:
         """Baut einen Abschnitt aus den Werten pro Grenze (ohne ``new_price``)."""
         recs: list[ConsumptionRecord] = []
         for k in BOUNDARY_KEYS:
+            d_ref = demand_at_reference_price[k] if demand_at_reference_price else None
+            p_ref = reference_shadow_price[k] if reference_shadow_price else None
             recs.append(
                 ConsumptionRecord(
                     control_variable_key=k,
@@ -109,6 +118,8 @@ class ConsumptionInterval:
                     vej=vej[k],
                     price=shadow_prices[k],
                     new_price=None,
+                    demand_at_reference_price=d_ref,
+                    reference_shadow_price=p_ref,
                 )
             )
         return cls(
@@ -118,11 +129,16 @@ class ConsumptionInterval:
         )
 
 
+@dataclass
 class ConsumptionTimeline:
-    """Geordnete Liste von Intervallen mit Zugriff auf letztes/ vorletztes Element."""
+    """Geordnete Intervalle mit ECU-Untergrenze und Preis-Konfiguration (fortlaufend über die Simulation)."""
 
-    def __init__(self) -> None:
-        self._intervals: list[ConsumptionInterval] = []
+    ecu_floor: float
+    """Untergrenze Σ p·VEJ (verteiltes ECU-Jahresvolumen dieser Periode)."""
+    price_config: PriceConfig
+    prices_for_next_consumption: dict[str, float] | None = None
+    """Von ``advance_shadow_prices`` gesetzt: Schattenpreise für den nächsten Konsum (leeres Timeline → Schätzstart)."""
+    _intervals: list[ConsumptionInterval] = field(default_factory=list, repr=False)
 
     def append(self, interval: ConsumptionInterval) -> None:
         self._intervals.append(interval)
@@ -132,6 +148,9 @@ class ConsumptionTimeline:
 
     def __getitem__(self, index: int) -> ConsumptionInterval:
         return self._intervals[index]
+
+    def __iter__(self):
+        return iter(self._intervals)
 
     @property
     def last(self) -> ConsumptionInterval:
