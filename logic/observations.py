@@ -24,11 +24,11 @@ def _canonical_unit_for_boundary(key: str) -> str:
     for b in ALL_BOUNDARIES:
         if b.key == key:
             if key == "co2":
-                return "Gt CO₂ a⁻¹"
+                return "Mt CO₂ a⁻¹"
             if key == "hanpp":
                 return "Anteil (0–1), a⁻¹-skalierter Fluss wie VEJ"
             if key == "nitrogen":
-                return "Tg N a⁻¹"
+                return "kt N a⁻¹"
             return b.unit_note[:40]
     return ""
 

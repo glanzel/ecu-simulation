@@ -7,6 +7,7 @@ from typing import Mapping
 
 from ecu_simulation.logic.observations import BOUNDARY_KEYS
 from ecu_simulation.logic.price_config import PriceConfig
+from ecu_simulation.simulation.consumption_budget import ConsumptionBudgetMethod
 
 
 @dataclass
@@ -15,7 +16,7 @@ class SimulationConfig:
 
     # Verteiltes ECU-Jahresvolumen EcuJ (konstant): Untergrenze ``Σ p·VEJ ≥ ecu_per_year``
     # wird ausschließlich über gemeinsame Preisskalierung erreicht, nicht durch Änderung von EcuJ.
-    ecu_per_year: float = 1.0
+    ecu_per_year: float = 100_000.0
     # Referenz-Schattenpreis p_ref,i (ECU/Einh.); Fallback: Start-Schattenpreis nach EcuJ-Normierung
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
@@ -30,6 +31,8 @@ class SimulationConfig:
     random_seed: int | None = None
     # Kybernetik der Schattenpreise (Schattenpreisfindung aus Timeline)
     price: PriceConfig = field(default_factory=PriceConfig)
+    # Roh-Nachfrage gegen ECU-Obergrenze: Σ p·c ≤ ecu_per_year (keine VEJ-Logik)
+    consumption_budget_method: ConsumptionBudgetMethod = ConsumptionBudgetMethod.SCALE
 
     def resolved_p_ref(self, initial_prices: dict[str, float]) -> dict[str, float]:
         """p_ref: explizit oder Fallback auf initial normierte Schattenpreise."""
