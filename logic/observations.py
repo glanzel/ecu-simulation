@@ -44,8 +44,6 @@ class ConsumptionRecord:
     vej: float
     price: float
     """Schattenpreis, zu dem ``value`` beobachtet wurde."""
-    new_price: float | None = None
-    """Nur von der Preisberechnung gesetzt: Vorschlag für den nächsten Schattenpreis (nach EcuJ-Boden)."""
     demand_at_reference_price: float | None = None
     """Nachfrage-Skalierung bei p_ref für diese Grenze (optional, pro Beobachtung)."""
     reference_shadow_price: float | None = None
@@ -81,15 +79,6 @@ class ConsumptionInterval:
         """VEJ-Obergrenze aus dem Record."""
         return self.record_for_key(key).vej
 
-    def set_new_price_for(self, key: str, new_price: float) -> None:
-        """Setzt ``new_price`` im Record (falls Record existiert)."""
-        self.record_for_key(key).new_price = new_price
-
-    def set_new_prices_from_map(self, new_prices: dict[str, float]) -> None:
-        """Schreibt ``new_price`` für alle Grenzen aus einem Schlüssel-Wert-Mapping."""
-        for k in BOUNDARY_KEYS:
-            self.set_new_price_for(k, new_prices[k])
-
     def shadow_prices_map(self) -> dict[str, float]:
         """Aktuelle Schattenpreise ``price`` dieses Intervalls."""
         return {k: self.price_for(k) for k in BOUNDARY_KEYS}
@@ -105,7 +94,7 @@ class ConsumptionInterval:
         demand_at_reference_price: dict[str, float] | None = None,
         reference_shadow_price: dict[str, float] | None = None,
     ) -> ConsumptionInterval:
-        """Baut einen Abschnitt aus den Werten pro Grenze (ohne ``new_price``)."""
+        """Baut einen Abschnitt aus den Werten pro Grenze."""
         recs: list[ConsumptionRecord] = []
         for k in BOUNDARY_KEYS:
             d_ref = demand_at_reference_price[k] if demand_at_reference_price else None
@@ -117,7 +106,6 @@ class ConsumptionInterval:
                     value=consumption[k],
                     vej=vej[k],
                     price=shadow_prices[k],
-                    new_price=None,
                     demand_at_reference_price=d_ref,
                     reference_shadow_price=p_ref,
                 )
@@ -155,9 +143,3 @@ class ConsumptionTimeline:
     @property
     def last(self) -> ConsumptionInterval:
         return self._intervals[-1]
-
-    def apply_new_prices_to_last(self, new_prices: dict[str, float]) -> None:
-        """Schreibt ``new_price`` für alle Grenzen nur im letzten Intervall."""
-        if not self._intervals:
-            return
-        self.last.set_new_prices_from_map(new_prices)
