@@ -26,6 +26,10 @@ from ecu_simulation.logic.prices import (
 )
 from ecu_simulation.logic.vej import compute_vej
 from ecu_simulation.simulation.config import SimulationConfig
+from ecu_simulation.simulation.consumption_budget import (
+    ConsumptionBudgetMethod,
+    apply_consumption_budget,
+)
 from ecu_simulation.simulation.demand import consumption_quantity
 
 
@@ -36,7 +40,9 @@ class PeriodResult:
     consumption: dict[str, float]
     vej: dict[str, float]
     bundle_ecu: float
-    """Σ p·VEJ — erfüllt EcuJ ≤ bundle_ecu (Slack möglich)."""
+    """Σ p·VEJ — Wert des vollen VEJ-Bündels zu den Schattenpreisen (Preis-/Kontenrahmen)."""
+    ecu_expenditure: float
+    """Σ p·consumption — tatsächlich verbuchte ECU pro Jahr (Summe der Grenz-Spalte p·c)."""
     ecu_floor: float
     """Untergrenze EcuJ dieser Periode (verteiltes ECU-Volumen)."""
     mean_utilization: float
@@ -55,7 +61,7 @@ def build_vej_bundle() -> dict[str, float]:
     return out
 
 
-def _consumption_at_prices(
+def _raw_consumption_at_prices(
     shadow: dict[str, float],
     demand_at_reference_price: dict[str, float],
     reference_shadow_price: dict[str, float],
@@ -80,10 +86,12 @@ def run_one_period(
     reference_shadow_price: dict[str, float],
     price_elasticity: dict[str, float],
     ecu_floor: float,
+    budget_method: ConsumptionBudgetMethod,
 ) -> tuple[dict[str, float], dict[str, float], float]:
     """
     Eine Periode: zuerst ``advance_shadow_prices`` (Preise für diesen Konsum),
-    dann genau ein Konsum und genau ein neues Intervall an der gemeinsamen Timeline.
+    dann Roh-Nachfrage, ggf. Drosselung auf ``Σ p·c ≤ ecu_floor`` via ``budget_method``,
+    dann ein neues Intervall an der gemeinsamen Timeline.
     """
     timeline.ecu_floor = ecu_floor
     advance_shadow_prices(timeline, vej)
@@ -92,9 +100,10 @@ def run_one_period(
         raise RuntimeError(
             "advance_shadow_prices muss prices_for_next_consumption setzen."
         )
-    c = _consumption_at_prices(
+    raw = _raw_consumption_at_prices(
         p, demand_at_reference_price, reference_shadow_price, price_elasticity
     )
+    c = apply_consumption_budget(raw, p, ecu_floor, budget_method)
     timeline.append(
         ConsumptionInterval.from_observation(
             period_index,
@@ -127,6 +136,7 @@ def run_simulation(
     """
     periods: Anzahl Zeitschritte.
     demand_growth_per_period: multiplikativer Faktor pro Grenze pro Periode (z. B. nur co2 > 1).
+    Konsum: ``cfg.consumption_budget_method`` begrenzt ``Σ p·consumption ≤ ecu_per_year``.
     """
     if cfg.random_seed is not None:
         random.seed(cfg.random_seed)
@@ -168,9 +178,11 @@ def run_simulation(
             reference_shadow_price,
             price_elasticity,
             ecu_floor,
+            cfg.consumption_budget_method,
         )
         mean_u = mean_boundary_utilization(consumption, vej)
         xr = exchange_rates_for_shadow_prices(p)
+        ecu_expenditure = bundle_value(p, consumption)
         results.append(
             PeriodResult(
                 period=t + 1,
@@ -178,6 +190,7 @@ def run_simulation(
                 consumption=consumption,
                 vej=vej,
                 bundle_ecu=bv,
+                ecu_expenditure=ecu_expenditure,
                 ecu_floor=ecu_floor,
                 mean_utilization=mean_u,
                 ecu_per_unit=xr.ecu_per_unit,

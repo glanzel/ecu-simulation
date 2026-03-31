@@ -9,19 +9,17 @@ Jahrtausende** aus der Atmosphäre entfernt (IPCC Kohlenstoffzyklus-Kapitel; Arc
 fossiles CO₂, Ozean- und Langzeitspeicher). Hier wird **RZ = CO2_REGENERATION_YEARS**
 (Jahre) als **Größenordnung** einer wirksamen Anpassungs-/Abklingzeit gesetzt (Standard
 **100 a**, vergleichbar dem üblichen GWP-Referenzhorizont; Alternativen in Studien oft
-**50–300 a**). Daraus folgt **VEJ in Gt CO₂ a⁻¹** = (AG−VK)/RZ. **HANPP / N:** RZ=1
+**50–300 a**). Daraus folgt **VEJ in Mt CO₂ a⁻¹** = (AG−VK)/RZ. **HANPP / N:** RZ=1
 bleibt eine neutrale Skalierung (Anteil bzw. bereits jährlicher Fluss in AG/VK).
 
 **Eingearbeitete Literatur (wo direkt aus PB-Update 2015):**
 
 - **Klima / CO₂:** Literatur **350 ppm / ≈280 ppm** (Steffen et al. 2015, SRC „Ref Figure 3“).
-  **AG und VK in diesem Modul in Gt CO₂** (atmosphärische CO₂-Masse proportional zur
-  Konzentration, Faktor `GT_CO2_PER_ATMOSPHERIC_PPM`). **RZ** siehe
+  **AG und VK in diesem Modul in Mt CO₂** (atmosphärische CO₂-Masse proportional zur
+  Konzentration, Faktor `MT_CO2_PER_ATMOSPHERIC_PPM` = 1000 × Gt pro ppm). **RZ** siehe
   `CO2_REGENERATION_YEARS`.
-- **Stickstoff:** dieselbe Quelle — biogeochemische Flüsse N, Grenzwert **69 Tg N a⁻¹**
-  (industrielle N₂-Fixierung u. a. je nach Definition; Zahlenfolge Boundary /
-  Unsicherheitszone / Ist in der SRC-Tabelle). Vorindustriell wird der **zusätzliche**
-  anthropogene Fixierungsstrom oft gegen **0** gesetzt (Rockström et al. 2009).
+- **Stickstoff:** dieselbe Quelle — Literatur **69 Tg N a⁻¹**; im Modell **kt N a⁻¹**
+  (**1 Tg = 1000 kt**), also **AG = 69 000 kt N a⁻¹** für dieselbe physikalische Grenze.
 - **HANPP:** In Steffen et al. (2015) ist die Land-System-Grenze u. a. über
   **Waldbestand** (%) formuliert, nicht über HANPP. Hier: **Proxy** aus Literatur zur
   menschlichen Inanspruchnahme der NPP (Haberl et al., u. a. PNAS 2007, globale
@@ -43,11 +41,16 @@ from dataclasses import dataclass
 # → 2,12 × (44/12) ≈ 7,8 Gt CO₂ pro ppm (nicht Jahres-Emission, sondern Masse in der Luft).
 # Quelle z. B. IPCC AR5 WGI (Kohlenstoffzyklus); exakter Wert leicht modellabhängig.
 GT_CO2_PER_ATMOSPHERIC_PPM: float = 2.12 * (44.0 / 12.0)
+# Dieselbe physikalische Größe in **Megatonnen** pro ppm (Rechen- und Anzeigeeinheit im Modell).
+MT_CO2_PER_ATMOSPHERIC_PPM: float = GT_CO2_PER_ATMOSPHERIC_PPM * 1000.0
 
-# Charakteristische Zeitskala für ecu.txt: VEJ_CO2 = (AG−VK)/RZ [Gt CO₂ a⁻¹], AG/VK in Gt.
+# Charakteristische Zeitskala für ecu.txt: VEJ_CO2 = (AG−VK)/RZ [Mt CO₂ a⁻¹], AG/VK in Mt.
 # Literatur: kein Einzelwert (IPCC: mehrere Entfernungsprozesse; Archer 2009 u. a.: Jahrhundert-
 # bis Jahrtausend-Skalen). 100 a = übliche Größenordnungswahl / GWP-Referenz; bei Bedarf z. B. 200–300.
 CO2_REGENERATION_YEARS: float = 100.0
+
+# Stickstoff: Literatur meist Tg N a⁻¹; im Modell **kt N a⁻¹** (1 Tg = 1000 kt).
+KT_N_PER_TG: float = 1000.0
 
 
 @dataclass(frozen=True)
@@ -73,16 +76,16 @@ CO2 = BoundaryConstants(
     key="co2",
     label_de="Klima (atmosphärisches CO₂)",
     unit_note=(
-        "AG/VK: Gt CO₂ (Masse in der Luft, linear mit ppm; Literatur 350/280 ppm). "
-        "VEJ: Gt CO₂ a⁻¹ via (AG−VK)/RZ, RZ = CO2_REGENERATION_YEARS (Jahre)."
+        "AG/VK: Mt CO₂ (Masse in der Luft, linear mit ppm; Literatur 350/280 ppm). "
+        "VEJ: Mt CO₂ a⁻¹ via (AG−VK)/RZ, RZ = CO2_REGENERATION_YEARS (Jahre)."
     ),
-    # Literatur ppm → Masse: AG = 350 ppm × (Gt CO₂ pro ppm), VK = 280 ppm × …
-    AG=350.0 * GT_CO2_PER_ATMOSPHERIC_PPM,
-    VK=280.0 * GT_CO2_PER_ATMOSPHERIC_PPM,
+    # Literatur ppm → Masse in Mt: 1 Gt = 1000 Mt
+    AG=350.0 * MT_CO2_PER_ATMOSPHERIC_PPM,
+    VK=280.0 * MT_CO2_PER_ATMOSPHERIC_PPM,
     RZ=CO2_REGENERATION_YEARS,
     literature_note=(
         "Grenzen ppm: Steffen et al. (2015), SRC „Ref Figure 3.txt“ (Climate.change). "
-        "Masse: ppm × GT_CO2_PER_ATMOSPHERIC_PPM (IPCC-Größenordnung ~2,12 Pg C pro ppm). "
+        "Masse: ppm × MT_CO2_PER_ATMOSPHERIC_PPM (Mt; IPCC ~2,12 Pg C pro ppm → Gt, hier ×1000). "
         "RZ=CO2_REGENERATION_YEARS: IPCC betont **keine** einzelne CO₂-Lebensdauer; Entfernung "
         "über sehr unterschiedliche Zeiten (u. a. Archer, D., 2009, Annu. Rev. Earth Planet. Sci., "
         "fossiles CO₂ über Jahrhunderte bis sehr lang). Hier 100 a als dokumentierte "
@@ -95,15 +98,11 @@ HANPP = BoundaryConstants(
     key="hanpp",
     label_de="HANPP (Proxy)",
     unit_note="Anteil der terrestrischen NPP (0–1)",
-    AG=0.15,
-    VK=0.08,
+    AG=5600,
+    VK=0,
     RZ=1.0,
     literature_note=(
-        "Kein direkter Eintrag in Steffen et al. 2015 „Fig. 3“-Tabelle (dort u. a. "
-        "Land-System über Waldbestand %). Proxy: Deckel 0,15 und Baseline ~0,08 "
-        "orientiert an Diskussion menschlicher NPP-Inanspruchnahme (z. B. Haberl et al. 2007 "
-        "~24 % global; Rockström et al. 2009 Landnutzungs-Obergrenzen anders definiert). "
-        "Bei Bedarf durch forest-cover-Metrik aus PB ersetzen."
+        "ca 20% Prozent der terrestrischen NPP in MT C (Kohlenstoff). https://www.science.org/doi/10.1126/sciadv.adh2458"
     ),
     is_example=True,
 )
@@ -111,13 +110,13 @@ HANPP = BoundaryConstants(
 NITROGEN = BoundaryConstants(
     key="nitrogen",
     label_de="Stickstoff (anthropogene N₂-Fixierung)",
-    unit_note="Tg N pro Jahr (Kontrollvariable N-Fluss, PB-Update 2015)",
-    AG=69.0,
+    unit_note="kt N pro Jahr (1 Tg = 1000 kt; PB-Grenze 69 Tg a⁻¹ → 69 000 kt a⁻¹).",
+    AG=69.0 * KT_N_PER_TG,
     VK=0.0,
     RZ=5.0,
     literature_note=(
-        "Grenze 69 Tg N a⁻¹: Steffen et al. (2015); SRC „Ref Figure 3.txt“ "
-        "(Biogeochemical.N, Spalte Boundary). VK=0: kein nennenswerter "
+        "Literatur-Grenze 69 Tg N a⁻¹: Steffen et al. (2015); SRC „Ref Figure 3.txt“ "
+        "(Biogeochemical.N). Im Modell kt N a⁻¹ (×1000). VK=0: kein nennenswerter "
         "anthropogener Haber-Bosch-Bezug vor Industrialisierung (Näherung)."
     ),
     is_example=False,

@@ -2,6 +2,7 @@
 
 from ecu_simulation.logic.prices import advance_shadow_prices
 from ecu_simulation.simulation.config import SimulationConfig, default_config
+from ecu_simulation.simulation.consumption_budget import ConsumptionBudgetMethod
 from ecu_simulation.simulation.demand import consumption_quantity
 from ecu_simulation.simulation.simulation import (
     PeriodResult,
@@ -14,6 +15,7 @@ from ecu_simulation.simulation.simulation import (
 __all__ = (
     "PeriodResult",
     "SimulationConfig",
+    "ConsumptionBudgetMethod",
     "advance_shadow_prices",
     "build_vej_bundle",
     "consumption_quantity",
