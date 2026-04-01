@@ -2,8 +2,9 @@
 Verbrauchsbeobachtungen: Werte je planetarer Grenze, Zeitabschnitte und Timeline.
 
 Pro Grenze werden Skalare in ``ConsumptionRecord`` gehalten; gebündelte
-Schattenpreise/Konsum/VEJ in der Simulation als ``dict[str, float]`` mit
-Schlüsseln aus ``BOUNDARY_KEYS``.
+Schattenpreise/Konsum/VET in der Simulation als ``dict[str, float]`` mit
+Schlüsseln aus ``BOUNDARY_KEYS``. **VET** = zulässige Menge pro Monat (VEJ/12);
+Konsum ``value`` ist pro Monat in derselben Einheit.
 """
 
 from __future__ import annotations
@@ -16,32 +17,35 @@ from ecu_simulation.logic.price_config import PriceConfig
 # Reihenfolge der Grenzen (Schlüssel) — zentral hier, damit keine Zirkelimporte mit ``config`` nötig sind
 BOUNDARY_KEYS: tuple[str, ...] = ("co2", "hanpp", "nitrogen")
 
-# Jahreslänge für ``zeitraum_days`` bei einer Simulationsperiode (ein „Jahr“)
-DAYS_PER_YEAR: float = 365.25
+# Kalender: glatt 365 Tage pro Jahr, kein Schaltjahr
+DAYS_PER_YEAR: float = 365.0
+MONTHS_PER_YEAR: int = 12
+DAYS_PER_MONTH: float = DAYS_PER_YEAR / float(MONTHS_PER_YEAR)
 
 
 def _canonical_unit_for_boundary(key: str) -> str:
     for b in ALL_BOUNDARIES:
         if b.key == key:
             if key == "co2":
-                return "Mt CO₂ a⁻¹"
+                return "Mt CO₂ Monat⁻¹"
             if key == "hanpp":
-                return "Anteil (0–1), a⁻¹-skalierter Fluss wie VEJ"
+                return "Anteil (0–1), Monatsfluss wie VET"
             if key == "nitrogen":
-                return "kt N a⁻¹"
+                return "kt N Monat⁻¹"
             return b.unit_note[:40]
     return ""
 
 
 @dataclass
 class ConsumptionRecord:
-    """Eine Kontrollvariable innerhalb eines Beobachtungsabschnitts."""
+    """Eine Kontrollvariable innerhalb eines Beobachtungsabschnitts (ein Monat)."""
 
     control_variable_key: str
     unit: str
     value: float
-    """Beobachteter Konsum / Verbrauch (jährliche Rate, konsistent zu VEJ)."""
-    vej: float
+    """Beobachteter Konsum im Intervall (pro Monat, konsistent zu ``vet``)."""
+    vet: float
+    """Zulässige Menge pro Monat (jährliche VEJ / 12)."""
     price: float
     """Schattenpreis, zu dem ``value`` beobachtet wurde."""
     demand_at_reference_price: float | None = None
@@ -52,12 +56,12 @@ class ConsumptionRecord:
 
 @dataclass
 class ConsumptionInterval:
-    """Ein Zeitabschnitt mit Verbrauchszeilen je Grenze."""
+    """Ein Zeitabschnitt (typ. ein Monat) mit Verbrauchszeilen je Grenze."""
 
     datum: int
-    """Laufindex der Beobachtung (z. B. Schritt in der Gleichgewichtssuche)."""
+    """Laufindex der Beobachtung (Monat)."""
     zeitraum_days: float
-    """Länge des zugehörigen Zeitbereichs in Tagen (z. B. DAYS_PER_YEAR pro Simulationsjahr)."""
+    """Länge des zugehörigen Zeitbereichs in Tagen (typ. ``DAYS_PER_MONTH``)."""
     records: list[ConsumptionRecord] = field(default_factory=list)
 
     def record_for_key(self, key: str) -> ConsumptionRecord:
@@ -72,12 +76,12 @@ class ConsumptionInterval:
         return self.record_for_key(key).price
 
     def consumption_for(self, key: str) -> float:
-        """Konsum-/Nachfragemenge ``consumption`` aus dem Record."""
+        """Konsum-/Nachfragemenge aus dem Record (pro Monat)."""
         return self.record_for_key(key).value
 
-    def vej_for(self, key: str) -> float:
-        """VEJ-Obergrenze aus dem Record."""
-        return self.record_for_key(key).vej
+    def vet_for(self, key: str) -> float:
+        """VET (Monats-Obergrenze) aus dem Record."""
+        return self.record_for_key(key).vet
 
     def shadow_prices_map(self) -> dict[str, float]:
         """Aktuelle Schattenpreise ``price`` dieses Intervalls."""
@@ -90,7 +94,7 @@ class ConsumptionInterval:
         zeitraum_days: float,
         shadow_prices: dict[str, float],
         consumption: dict[str, float],
-        vej: dict[str, float],
+        vet: dict[str, float],
         demand_at_reference_price: dict[str, float] | None = None,
         reference_shadow_price: dict[str, float] | None = None,
     ) -> ConsumptionInterval:
@@ -104,7 +108,7 @@ class ConsumptionInterval:
                     control_variable_key=k,
                     unit=_canonical_unit_for_boundary(k),
                     value=consumption[k],
-                    vej=vej[k],
+                    vet=vet[k],
                     price=shadow_prices[k],
                     demand_at_reference_price=d_ref,
                     reference_shadow_price=p_ref,
@@ -122,7 +126,7 @@ class ConsumptionTimeline:
     """Geordnete Intervalle mit ECU-Untergrenze und Preis-Konfiguration (fortlaufend über die Simulation)."""
 
     ecu_floor: float
-    """Untergrenze Σ p·VEJ (verteiltes ECU-Jahresvolumen dieser Periode)."""
+    """Untergrenze Σ p·VEJ (verteiltes ECU-Jahresvolumen; Preislogik)."""
     price_config: PriceConfig
     prices_for_next_consumption: dict[str, float] | None = None
     """Von ``advance_shadow_prices`` gesetzt: Schattenpreise für den nächsten Konsum (leeres Timeline → Schätzstart)."""

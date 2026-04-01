@@ -21,7 +21,7 @@ class SimulationConfig:
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
-    # Anteil f_i: D_i(p_ref) startet als f_i·VEJ_i (isoelastische Skalierung „bei Referenzpreis“)
+    # Anteil f_i: D_i(p_ref) startet als f_i·VET_i = f_i·VEJ_i/12 (isoelastisch bei Referenzpreis, monatlich)
     d0_fraction_of_vej: Mapping[str, float] = field(default_factory=dict)
     # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(N(0, σ²)); σ im Log-Raum, typ. ~0,3
     demand_at_reference_price_log_noise_std: float = 0.3
@@ -31,7 +31,7 @@ class SimulationConfig:
     random_seed: int | None = None
     # Kybernetik der Schattenpreise (Schattenpreisfindung aus Timeline)
     price: PriceConfig = field(default_factory=PriceConfig)
-    # Roh-Nachfrage gegen ECU-Obergrenze: Σ p·c ≤ ecu_per_year (keine VEJ-Logik)
+    # Roh-Nachfrage gegen ECU-Obergrenze pro Monat: Σ p·c ≤ ecu_per_year/12 (keine VEJ-Logik im Budget)
     consumption_budget_method: ConsumptionBudgetMethod = ConsumptionBudgetMethod.SCALE
 
     def resolved_p_ref(self, initial_prices: dict[str, float]) -> dict[str, float]:

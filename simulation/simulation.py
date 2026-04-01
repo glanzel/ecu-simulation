@@ -13,7 +13,8 @@ from dataclasses import dataclass
 
 from ecu_simulation.logic.observations import (
     BOUNDARY_KEYS,
-    DAYS_PER_YEAR,
+    DAYS_PER_MONTH,
+    MONTHS_PER_YEAR,
     ConsumptionInterval,
     ConsumptionTimeline,
 )
@@ -39,14 +40,17 @@ class PeriodResult:
     prices: dict[str, float]
     consumption: dict[str, float]
     vej: dict[str, float]
+    """Jährliche VEJ (Referenz; VET = VEJ/12)."""
+    vet: dict[str, float]
+    """Monatliche Obergrenze pro Grenze (Konsumintervall)."""
     bundle_ecu: float
-    """Σ p·VEJ — Wert des vollen VEJ-Bündels zu den Schattenpreisen (Preis-/Kontenrahmen)."""
+    """Σ p·VEJ — Wert des vollen VEJ-Bündels zu den Schattenpreisen (Preis-/Kontenrahmen, jährlich)."""
     ecu_expenditure: float
-    """Σ p·consumption — tatsächlich verbuchte ECU pro Jahr (Summe der Grenz-Spalte p·c)."""
+    """Σ p·consumption — tatsächlich verbuchte ECU im Monat (Summe der Grenz-Spalte p·c)."""
     ecu_floor: float
-    """Untergrenze EcuJ dieser Periode (verteiltes ECU-Volumen)."""
+    """Untergrenze EcuJ (jährlich; Preislogik Σ p·VEJ)."""
     mean_utilization: float
-    """Mittel aus min(consumption/VEJ, 1) über die drei Grenzen."""
+    """Mittel aus min(consumption/VET, 1) über die drei Grenzen."""
     ecu_per_unit: dict[str, float]
     unit_per_ecu: dict[str, float]
     demand_at_reference_price: dict[str, float]
@@ -59,6 +63,12 @@ def build_vej_bundle() -> dict[str, float]:
     for b in ALL_BOUNDARIES:
         out[b.key] = compute_vej(b.AG, b.VK, b.RZ)
     return out
+
+
+def vet_from_vej(vej: dict[str, float]) -> dict[str, float]:
+    """Monatliche Obergrenze VET = VEJ / 12 (glattes Jahr)."""
+    inv = float(MONTHS_PER_YEAR)
+    return {k: vej[k] / inv for k in BOUNDARY_KEYS}
 
 
 def _raw_consumption_at_prices(
@@ -85,15 +95,15 @@ def run_one_period(
     demand_at_reference_price: dict[str, float],
     reference_shadow_price: dict[str, float],
     price_elasticity: dict[str, float],
-    ecu_floor: float,
+    ecu_floor_annual: float,
     budget_method: ConsumptionBudgetMethod,
 ) -> tuple[dict[str, float], dict[str, float], float]:
     """
-    Eine Periode: zuerst ``advance_shadow_prices`` (Preise für diesen Konsum),
-    dann Roh-Nachfrage, ggf. Drosselung auf ``Σ p·c ≤ ecu_floor`` via ``budget_method``,
+    Ein Monat: zuerst ``advance_shadow_prices`` (Preise für diesen Konsum),
+    dann Roh-Nachfrage, ggf. Drosselung auf ``Σ p·c ≤ ecu_floor_annual/12`` via ``budget_method``,
     dann ein neues Intervall an der gemeinsamen Timeline.
     """
-    timeline.ecu_floor = ecu_floor
+    timeline.ecu_floor = ecu_floor_annual
     advance_shadow_prices(timeline, vej)
     p = timeline.prices_for_next_consumption
     if p is None:
@@ -103,14 +113,16 @@ def run_one_period(
     raw = _raw_consumption_at_prices(
         p, demand_at_reference_price, reference_shadow_price, price_elasticity
     )
-    c = apply_consumption_budget(raw, p, ecu_floor, budget_method)
+    ecu_ceiling_month = ecu_floor_annual / float(MONTHS_PER_YEAR)
+    c = apply_consumption_budget(raw, p, ecu_ceiling_month, budget_method)
+    vet = vet_from_vej(vej)
     timeline.append(
         ConsumptionInterval.from_observation(
             period_index,
-            DAYS_PER_YEAR,
+            DAYS_PER_MONTH,
             p,
             c,
-            vej,
+            vet,
             demand_at_reference_price=demand_at_reference_price,
             reference_shadow_price=reference_shadow_price,
         )
@@ -119,10 +131,10 @@ def run_one_period(
     return p, c, bv
 
 
-def mean_boundary_utilization(consumption: dict[str, float], vej: dict[str, float]) -> float:
-    """Durchschnitt der Auslastung pro Grenze (consumption/VEJ, maximal 1)."""
+def mean_boundary_utilization(consumption: dict[str, float], vet: dict[str, float]) -> float:
+    """Durchschnitt der Auslastung pro Grenze (consumption/VET, maximal 1)."""
     parts = [
-        min(1.0, consumption[k] / vej[k]) if vej[k] > 0 else 0.0
+        min(1.0, consumption[k] / vet[k]) if vet[k] > 0 else 0.0
         for k in BOUNDARY_KEYS
     ]
     return sum(parts) / len(parts)
@@ -130,21 +142,22 @@ def mean_boundary_utilization(consumption: dict[str, float], vej: dict[str, floa
 
 def run_simulation(
     cfg: SimulationConfig,
-    periods: int,
+    months: int,
     demand_growth_per_period: dict[str, float] | None = None,
 ) -> list[PeriodResult]:
     """
-    periods: Anzahl Zeitschritte.
-    demand_growth_per_period: multiplikativer Faktor pro Grenze pro Periode (z. B. nur co2 > 1).
-    Konsum: ``cfg.consumption_budget_method`` begrenzt ``Σ p·consumption ≤ ecu_per_year``.
+    months: Anzahl Monate (ein Datenpunkt pro Monat).
+    demand_growth_per_period: multiplikativer Faktor pro Grenze pro Monat (z. B. nur co2 > 1).
+    Konsum: ``cfg.consumption_budget_method`` begrenzt ``Σ p·consumption ≤ ecu_per_year/12`` pro Monat.
     """
     if cfg.random_seed is not None:
         random.seed(cfg.random_seed)
 
     vej = build_vej_bundle()
+    vet = vet_from_vej(vej)
     base_epsilon = cfg.resolved_epsilon()
     frac = cfg.resolved_d0_fraction()
-    demand_at_reference_price = {k: frac[k] * vej[k] for k in BOUNDARY_KEYS}
+    demand_at_reference_price = {k: frac[k] * vet[k] for k in BOUNDARY_KEYS}
     growth = demand_growth_per_period or {k: 1.0 for k in BOUNDARY_KEYS}
 
     ecu_floor = cfg.ecu_per_year
@@ -154,7 +167,7 @@ def run_simulation(
     results: list[PeriodResult] = []
     demand_noise_std = cfg.demand_at_reference_price_log_noise_std
     epsilon_noise_std = cfg.epsilon_log_noise_std
-    for t in range(periods):
+    for t in range(months):
         demand_at_reference_price = {
             k: demand_at_reference_price[k] * growth[k] for k in BOUNDARY_KEYS
         }
@@ -180,7 +193,7 @@ def run_simulation(
             ecu_floor,
             cfg.consumption_budget_method,
         )
-        mean_u = mean_boundary_utilization(consumption, vej)
+        mean_u = mean_boundary_utilization(consumption, vet)
         xr = exchange_rates_for_shadow_prices(p)
         ecu_expenditure = bundle_value(p, consumption)
         results.append(
@@ -189,6 +202,7 @@ def run_simulation(
                 prices=p,
                 consumption=consumption,
                 vej=vej,
+                vet=vet,
                 bundle_ecu=bv,
                 ecu_expenditure=ecu_expenditure,
                 ecu_floor=ecu_floor,

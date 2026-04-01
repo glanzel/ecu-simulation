@@ -1,5 +1,5 @@
 """
-Konsummenge ``consumption_quantity`` (Einheit der jeweiligen Kontrollvariable, vgl. VEJ).
+Konsummenge ``consumption_quantity`` (Einheit der jeweiligen Kontrollvariable; in der Simulation pro Monat, vgl. VET).
 
 Formel:
 
