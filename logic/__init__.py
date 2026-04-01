@@ -5,7 +5,9 @@ from ecu_simulation.logic.observations import (
     ConsumptionInterval,
     ConsumptionRecord,
     ConsumptionTimeline,
+    DAYS_PER_MONTH,
     DAYS_PER_YEAR,
+    MONTHS_PER_YEAR,
 )
 from ecu_simulation.logic.planetary_constants import ALL_BOUNDARIES, BoundaryConstants
 from ecu_simulation.logic.price_config import PriceConfig
@@ -17,6 +19,8 @@ __all__ = (
     "ConsumptionInterval",
     "ConsumptionRecord",
     "ConsumptionTimeline",
+    "DAYS_PER_MONTH",
     "DAYS_PER_YEAR",
+    "MONTHS_PER_YEAR",
     "PriceConfig",
 )

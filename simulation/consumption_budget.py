@@ -36,7 +36,7 @@ def bundle_expenditure(
     prices: dict[str, float],
     consumption: dict[str, float],
 ) -> float:
-    """``Σ_i p_i · consumption_i`` (tatsächlich verbuchte ECU pro Jahr)."""
+    """``Σ_i p_i · consumption_i`` (verbuchte ECU im Abrechnungszeitraum, hier pro Monat)."""
     return sum(prices[k] * consumption[k] for k in BOUNDARY_KEYS)
 
 

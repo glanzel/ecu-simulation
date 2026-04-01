@@ -16,7 +16,7 @@ import math
 
 from ecu_simulation.logic.exchange import ExchangeRates, rates_from_prices
 from ecu_simulation.logic.initial_prices import initial_weights_uniform, prices_from_weights
-from ecu_simulation.logic.observations import BOUNDARY_KEYS, ConsumptionTimeline
+from ecu_simulation.logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR, ConsumptionTimeline
 from ecu_simulation.simulation.config import SimulationConfig
 
 
@@ -92,17 +92,17 @@ def enforce_ecu_floor(
     return {k: prices[k] for k in BOUNDARY_KEYS}
 
 
-def consumption_all_below_vej(
+def consumption_all_below_vet(
     consumption: dict[str, float],
-    vej: dict[str, float],
+    vet: dict[str, float],
     tol: float,
 ) -> bool:
     """
-    Prüft, ob der Verbrauch an jeder Grenze die VEJ nicht übersteigt (mit Toleranz).
+    Prüft, ob der Verbrauch an jeder Grenze die VET (Monats-Obergrenze) nicht übersteigt.
 
-    Gibt ``True`` zurück, wenn für alle Grenzen ``consumption_i ≤ vej_i + tol`` gilt.
+    Gibt ``True`` zurück, wenn für alle Grenzen ``consumption_i ≤ vet_i + tol`` gilt.
     """
-    return all(consumption[k] <= vej[k] + tol for k in BOUNDARY_KEYS)
+    return all(consumption[k] <= vet[k] + tol for k in BOUNDARY_KEYS)
 
 
 def _implied_elasticity_from_history(
@@ -159,13 +159,14 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
     tol = price_cfg.tolerance
     default_price_multiplier = price_cfg.price_bump
 
-    vej_last = {k: last_interval.vej_for(k) for k in BOUNDARY_KEYS}
+    vet_last = {k: last_interval.vet_for(k) for k in BOUNDARY_KEYS}
+    vej_annual = {k: vet_last[k] * float(MONTHS_PER_YEAR) for k in BOUNDARY_KEYS}
     shadow_prices_last = {k: last_interval.price_for(k) for k in BOUNDARY_KEYS}
     consumption_last = {k: last_interval.consumption_for(k) for k in BOUNDARY_KEYS}
 
-    if consumption_all_below_vej(consumption_last, vej_last, tol):
+    if consumption_all_below_vet(consumption_last, vet_last, tol):
         final_prices = enforce_ecu_floor(
-            shadow_prices_last, vej_last, ecu_floor, tol
+            shadow_prices_last, vej_annual, ecu_floor, tol
         )
     else:
         candidate_prices = {k: shadow_prices_last[k] for k in BOUNDARY_KEYS}
@@ -173,7 +174,7 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
         previous_interval = timeline[-2] if has_previous_interval else None
 
         for boundary_key in BOUNDARY_KEYS:
-            if consumption_last[boundary_key] <= vej_last[boundary_key] + tol:
+            if consumption_last[boundary_key] <= vet_last[boundary_key] + tol:
                 continue
 
             price_multiplier = default_price_multiplier
@@ -189,12 +190,12 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
                     price_cfg.price_eta_clip,
                 )
                 if implied_elasticity is not None:
-                    vej_over_consumption = (
-                        vej_last[boundary_key] / consumption_last[boundary_key]
+                    vet_over_consumption = (
+                        vet_last[boundary_key] / consumption_last[boundary_key]
                     )
-                    if 0.0 < vej_over_consumption < 1.0:
+                    if 0.0 < vet_over_consumption < 1.0:
                         multiplier_from_elasticity = math.exp(
-                            math.log(vej_over_consumption) / implied_elasticity
+                            math.log(vet_over_consumption) / implied_elasticity
                         )
                         mult_min, mult_max = price_cfg.price_step_multiplier_clip
                         price_multiplier = max(
@@ -206,7 +207,7 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
             )
 
         final_prices = enforce_ecu_floor(
-            candidate_prices, vej_last, ecu_floor, tol
+            candidate_prices, vej_annual, ecu_floor, tol
         )
 
     return final_prices
@@ -224,8 +225,8 @@ def advance_shadow_prices(
     """
     Legt die Schattenpreise fest, **bevor** in dieser Periode konsumiert wird.
 
-    - **Leere Timeline** (erstes Jahr): Startpreise über ``initial_shadow_prices_for_ecu``
-      (Schätzung auf Basis von VEJ und ``ecu_floor``), kein vorheriger Konsum.
+    - **Leere Timeline** (erster Monat): Startpreise über ``initial_shadow_prices_for_ecu``
+      (Schätzung auf Basis von jährlicher VEJ und ``ecu_floor``), kein vorheriger Konsum.
     - **Sonst**: ``estimate_next_prices_from_timeline`` aus dem letzten Intervall.
 
     Setzt ``timeline.prices_for_next_consumption`` — die Simulation liest das und
