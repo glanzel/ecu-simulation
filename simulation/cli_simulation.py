@@ -12,26 +12,11 @@ from ecu_simulation.logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR
 from ecu_simulation.logic.planetary_constants import ALL_BOUNDARIES, BoundaryConstants
 from ecu_simulation.simulation.config import SimulationConfig, default_config
 from ecu_simulation.simulation.consumption_budget import ConsumptionBudgetMethod
+from ecu_simulation.simulation.report_aggregates import group_results_by_calendar_year
+from ecu_simulation.simulation.run_params import RunParams
 from ecu_simulation.simulation.simulation import PeriodResult, run_simulation
 
 _GROWTH_ORDER = ", ".join(BOUNDARY_KEYS)
-
-
-def _parse_comma_floats(s: str, n: int, label: str) -> list[float]:
-    """Parst ``n`` durch Komma getrennte Fließkommazahlen (Whitespace erlaubt)."""
-    parts = [p.strip() for p in s.split(",") if p.strip() != ""]
-    if len(parts) != n:
-        raise SystemExit(
-            f"{label}: genau {n} Werte erwartet (Reihenfolge: {_GROWTH_ORDER}), "
-            f"gefunden: {len(parts)}."
-        )
-    out: list[float] = []
-    for raw in parts:
-        try:
-            out.append(float(raw))
-        except ValueError as e:
-            raise SystemExit(f"{label}: keine Zahl: {raw!r}") from e
-    return out
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -205,22 +190,9 @@ def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) ->
     )
 
 
-def _results_by_calendar_year(results: list[PeriodResult]) -> dict[int, list[PeriodResult]]:
-    """Gruppiert Monatszeilen nach Kalenderjahr (Jahr 1 = Monate 1–12, usw.)."""
-    out: dict[int, list[PeriodResult]] = {}
-    for r in results:
-        y = (r.period - 1) // MONTHS_PER_YEAR + 1
-        if y not in out:
-            out[y] = []
-        out[y].append(r)
-    for rows in out.values():
-        rows.sort(key=lambda x: x.period)
-    return out
-
-
 def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> None:
     """Pro Jahr: Summe Σ p·c, repräsentatives Σ p·VEJ (Monatsende), Mittel der Auslastung."""
-    by_y = _results_by_calendar_year(results)
+    by_y = group_results_by_calendar_year(results)
     if not by_y:
         return
     w = 108
@@ -262,7 +234,7 @@ def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> Non
 
 def print_yearly_boundary_tables(results: list[PeriodResult]) -> None:
     """Pro Jahr und Grenze: Jahressummen Konsum, p·c; Mittelpreis; c/VEJ auf Jahresbasis."""
-    by_y = _results_by_calendar_year(results)
+    by_y = group_results_by_calendar_year(results)
     if not by_y:
         return
     for b in ALL_BOUNDARIES:
@@ -380,24 +352,15 @@ def print_report(
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     cfg: SimulationConfig = default_config()
-    if args.ecu is not None:
-        cfg.ecu_per_year = args.ecu
-    if args.demand_noise_std is not None:
-        cfg.demand_at_reference_price_log_noise_std = args.demand_noise_std
-    if args.epsilon_noise_std is not None:
-        cfg.epsilon_log_noise_std = args.epsilon_noise_std
-    if args.seed is not None:
-        cfg.random_seed = args.seed
-    if args.consumption_budget is not None:
-        cfg.consumption_budget_method = ConsumptionBudgetMethod(args.consumption_budget)
-    if args.growth is not None:
-        vals = _parse_comma_floats(args.growth, len(BOUNDARY_KEYS), "--growth")
-        growth = {BOUNDARY_KEYS[i]: vals[i] for i in range(len(BOUNDARY_KEYS))}
-    else:
-        growth = {k: 1.0 for k in BOUNDARY_KEYS}
-    months = args.periods * MONTHS_PER_YEAR
+    params = RunParams.from_argparse(args)
+    params.apply_to_config(cfg)
+    try:
+        growth = params.growth_per_boundary()
+    except ValueError as e:
+        raise SystemExit(str(e)) from e
+    months = params.periods_years * MONTHS_PER_YEAR
     results = run_simulation(cfg, months, demand_growth_per_period=growth)
-    print_report(results, cfg, simulation_years=args.periods)
+    print_report(results, cfg, simulation_years=params.periods_years)
     return 0
 
 

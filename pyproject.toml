@@ -1,0 +1,25 @@
+[project]
+name = "ecu-simulation"
+version = "0.1.0"
+description = "ECU-Terminalsimulation (planetare Grenzen, Schattenpreise)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+]
+web = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.24",
+    "python-jsx",
+]
+
+[tool.uv]
+# Kein Wheel-Build: das Paket `ecu_simulation` liegt flach im Repo-Root (Import mit PYTHONPATH auf das Elternverzeichnis).
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = [".."]
+testpaths = ["../tests"]
