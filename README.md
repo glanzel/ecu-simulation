@@ -1,52 +1,70 @@
 # ECU terminal simulation
 
-Small Python model for an ecological currency (ECU) tied to three planetary-boundary control variables (CO₂, HANPP, nitrogen). Runs in the terminal only.
+Kleines Python-Modell zu einer ökologischen Währung (ECU) an drei planetaren Kontrollvariablen (CO₂, HANPP, Stickstoff). CLI und optional Web-Oberfläche (FastAPI).
 
-## Requirements
+## Voraussetzungen
 
 - **Python 3.10+**
-- **Runtime:** standard library only (no `pip install` needed to run the CLI)
-- **Tests (optional):** [pytest](https://pytest.org/) — see below
+- **[uv](https://docs.astral.sh/uv/)** als Paketmanager (nativer Projekt-Workflow mit `pyproject.toml` und `uv.lock`, kein `pip install -r`)
 
-## Layout
+## Projekt-Layout
 
-The import package is **`ecu_sim`**. The repository root should be the directory that **contains** the `ecu_sim/` folder (with `main.py`, `config.py`, …), plus `tests/` and `pytest.ini` if you use tests.
+- Importpaket: **`ecu_simulation`** (Ordner dieses Repos).
+- Für `python -m ecu_simulation` muss das **Elternverzeichnis** dieses Ordners auf `PYTHONPATH` liegen (typisch: übergeordneter Ordner `texte/` mit `pytest.ini` und `tests/`).
 
-## Run the simulation
+## Abhängigkeiten mit uv
 
-From that repository root:
-
-```bash
-python ecu_sim/main.py
-```
-
-With options, for example:
+Im Verzeichnis **`ecu_simulation/`** (dort liegt `pyproject.toml`):
 
 ```bash
-python ecu_sim/main.py --periods 10 --growth 1.02,1,1 --ecu 100000
+uv sync                    # nur Basis (aktuell keine Runtime-Deps)
+uv sync --group dev        # u. a. pytest
+uv sync --group web        # FastAPI, uvicorn, PyJSX
+uv sync --all-groups       # dev + web
 ```
 
-Alternative entry point:
+`uv` legt standardmäßig eine **`.venv`** im Projekt an und schreibt **`uv.lock`**. Für reproduzierbare Installationen `uv.lock` versionieren.
+
+## Simulation starten (CLI)
+
+Vom **Elternverzeichnis** des Pakets (z. B. `texte/`), sodass `ecu_simulation` importierbar ist:
 
 ```bash
-python -m ecu_sim
+cd /pfad/zu/texte
+export PYTHONPATH=.
+uv run --project ecu_simulation python -m ecu_simulation --periods 5
 ```
 
-(`ecu_sim/__main__.py` calls the same CLI.)
-
-## Optional: tests
-
-Create a virtual environment (recommended), then:
+Kurzform mit einem Befehl:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements-dev.txt
-pytest tests/ -v
+PYTHONPATH=. uv run --project ecu_simulation python -m ecu_simulation --periods 5 --seed 1
 ```
 
-Use `pytest tests/ -s -v` if you want printed output from the tests.
+## Optional: Web-Oberfläche
 
-## Licence
+Nach `uv sync --group web`:
 
-See [LICENSE](LICENSE).
+```bash
+cd /pfad/zu/texte
+export PYTHONPATH=.
+uv run --project ecu_simulation uvicorn ecu_simulation.ui.web.app:app --reload
+```
+
+**Darstellung:** [Tailwind CSS](https://tailwindcss.com/) mit [Tailwind Typography](https://github.com/tailwindlabs/tailwindcss-typography) liegt als gebaute Datei `ui/web/static/app.css` im Repo und wird unter `/static` ausgeliefert. Zum Neuaufbau nach Style-Änderungen: `npm run build:css` in `ui/web/`, siehe [ui/web/README.md](ui/web/README.md).
+
+## Tests
+
+`uv sync --group dev`, dann vom Elternverzeichnis `texte/` (wegen `tests/` und `pytest.ini`):
+
+```bash
+cd /pfad/zu/texte
+export PYTHONPATH=.
+uv run --project ecu_simulation pytest tests/ -v
+```
+
+Ausgaben der Tests: `uv run --project ecu_simulation pytest tests/ -s -v`
+
+## Lizenz
+
+Siehe [LICENSE](LICENSE).

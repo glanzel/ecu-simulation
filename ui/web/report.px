@@ -1,0 +1,314 @@
+from pyjsx import JSX, jsx
+
+from ecu_simulation.simulation.report_aggregates import BoundaryYearSummary
+from ecu_simulation.ui.web.view_model import BoundarySection, MonthRow, YearDetail
+
+# Feste Tailwind-``grid-cols-n``-Utilities (alle als Literale, damit der JIT-Build sie enthält).
+_GRID_COLS: tuple[str, ...] = (
+    "grid-cols-1",
+    "grid-cols-2",
+    "grid-cols-3",
+    "grid-cols-4",
+    "grid-cols-5",
+    "grid-cols-6",
+    "grid-cols-7",
+    "grid-cols-8",
+    "grid-cols-9",
+    "grid-cols-10",
+    "grid-cols-11",
+    "grid-cols-12",
+)
+
+# Nur für die Gesamtzeile „Grenze / Σ …“: erste Spalte breiter — echtes CSS, kein React-``camelCase``-Dict.
+_STYLE_TOTALS_GRID: str = "grid-template-columns: 1.2fr repeat(4, auto)"
+
+
+def _head() -> JSX:
+    return (
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>ECU — Auswertung</title>
+            <link rel="stylesheet" href="/static/app.css" />
+        </head>
+    )
+
+
+def _fmt_num(x: float, prec: int = 6) -> str:
+    if x != x:
+        return "n/a"
+    return f"{x:.{prec}g}"
+
+
+def _fmt_pct(x: float) -> str:
+    if x != x:
+        return "n/a"
+    return f"{x:.2f}"
+
+
+def _fmt_seed(s: int | None) -> str:
+    if s is None:
+        return "— (nicht gesetzt)"
+    return str(s)
+
+
+def _growth_overview(growth_by_boundary: list[tuple[str, float]]) -> JSX:
+    items: list = []
+    for k, v in growth_by_boundary:
+        items.append(
+            <li class="text-slate-800">
+                <span class="font-medium text-slate-700">{k}</span>
+                {": "}
+                {_fmt_num(v, prec=4)}
+            </li>
+        )
+    return (
+        <div class="not-prose mt-4 text-sm">
+            <h3 class="text-sm font-semibold text-slate-700 mb-2">Nachfrage-Wachstum (Log, pro Grenze)</h3>
+            <ul class="list-disc pl-5 space-y-1 text-slate-800">{items}</ul>
+        </div>
+    )
+
+
+def _run_params_block(
+    ecu_floor: float,
+    periods_years: int,
+    n_months: int,
+    budget_method: str,
+    growth_by_boundary: list[tuple[str, float]],
+    demand_noise_std: float,
+    epsilon_noise_std: float,
+    seed: int | None,
+) -> JSX:
+    row_global = [
+        _fmt_num(ecu_floor),
+        str(periods_years),
+        str(n_months),
+        budget_method,
+    ]
+    hdr_global = ["EcuJ (Jahr)", "Jahre", "Monate", "Budget"]
+    return (
+        <section class="not-prose mb-10">
+            <h2 class="text-lg font-semibold text-slate-800 mt-0">Laufparameter</h2>
+            {_grid(4, hdr_global, [row_global])}
+            {_growth_overview(growth_by_boundary)}
+            {_grid(
+                3,
+                [
+                    "σ demand (Log)",
+                    "σ ε (Log)",
+                    "Seed",
+                ],
+                [
+                    [
+                        _fmt_num(demand_noise_std),
+                        _fmt_num(epsilon_noise_std),
+                        _fmt_seed(seed),
+                    ]
+                ],
+            )}
+            <p class="text-sm text-slate-600 mt-2">
+                σ demand / σ ε: je Monat und Grenze; Standardwerte gelten, wenn keine GET-Parameter
+                gesetzt sind.
+            </p>
+        </section>
+    )
+
+
+def _grid(
+    n_cols: int,
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    row_header: bool = True,
+    style: str | None = None,
+    extra_classes: str = "",
+    flush: bool = False,
+) -> JSX:
+    """Gleich breite Spalten: Tailwind ``grid-cols-n``. ``flush``: ohne Außenabstand (in ``<summary>`` / verschachtelt)."""
+    if n_cols < 1 or n_cols > 12:
+        raise ValueError(f"n_cols muss 1–12 sein, nicht {n_cols}")
+    if len(headers) != n_cols:
+        raise ValueError(f"Header-Anzahl {len(headers)} passt nicht zu n_cols={n_cols}")
+    for i, row in enumerate(rows):
+        if len(row) != n_cols:
+            raise ValueError(f"Zeile {i}: {len(row)} Zellen, erwartet {n_cols}")
+    cells: list = []
+    if row_header:
+        h_cls = "font-semibold bg-slate-100 text-slate-800 px-2 py-1.5 text-xs"
+        if not flush:
+            h_cls = h_cls + " rounded"
+        for h in headers:
+            cells.append(
+                <div class={h_cls} role="columnheader">
+                    {h}
+                </div>
+            )
+    for row in rows:
+        for c in row:
+            cells.append(
+                <div class="px-2 py-1 border-b border-slate-100 text-slate-800" role="gridcell">
+                    {c}
+                </div>
+            )
+    if flush:
+        base = "not-prose grid gap-x-3 gap-y-1 border-0 p-0 my-0 text-sm bg-white shadow-none w-full"
+    else:
+        base = (
+            "not-prose grid gap-x-3 gap-y-1 border border-slate-200 rounded-lg p-3 my-3 "
+            "text-sm bg-white shadow-sm"
+        )
+    if extra_classes:
+        base = base + " " + extra_classes
+    if style is None:
+        grid_classes = base + " " + _GRID_COLS[n_cols - 1]
+    else:
+        grid_classes = base
+    return (
+        <div class={grid_classes} role="grid" style={style}>
+            {cells}
+        </div>
+    )
+
+
+def _month_grid(rows: list[MonthRow]) -> JSX:
+    """Monatsraster: eine Zeile pro Monat, Spalten wie CLI — alles ``display:grid`` über ``_grid``."""
+    hdr = ["Mon", "p", "consumption", "p·c", "demand", "VET", "c/VET %"]
+    rrows: list[list[str]] = []
+    for m in rows:
+        rrows.append(
+            [
+                str(m.period),
+                _fmt_num(m.price),
+                _fmt_num(m.consumption),
+                _fmt_num(m.pc),
+                _fmt_num(m.demand),
+                _fmt_num(m.vet),
+                _fmt_pct(m.pct_vet),
+            ]
+        )
+    return _grid(
+        7,
+        hdr,
+        rrows,
+        flush=True,
+        extra_classes="rounded-md border border-slate-200",
+    )
+
+
+_YEAR_HDR = ["Jahr", "Mon.", "Ø p", "Σ consumption", "Σ p·c", "VEJ", "Σc/VEJ %"]
+
+
+def _year_header_row() -> JSX:
+    """Kopfzeile fürs Jahresraster — gleiche 7 Spalten wie Datenzeilen und Monatsraster."""
+    cells: list = []
+    for h in _YEAR_HDR:
+        cells.append(
+            <div class="min-w-0 border-r border-slate-200 last:border-r-0 px-1.5 py-2 font-semibold text-slate-800">
+                {h}
+            </div>
+        )
+    return (
+        <div
+            class="grid grid-cols-7 gap-x-1 border-b border-slate-200 bg-slate-100 text-xs"
+            role="row"
+        >
+            {cells}
+        </div>
+    )
+
+
+def _year_data_cells(ys: BoundaryYearSummary) -> list:
+    """Sieben Zellen für eine Jahresdatenzeile (``<summary>``-Grid)."""
+    vals = [
+        str(ys.year_index),
+        str(ys.n_months),
+        _fmt_num(ys.mean_price),
+        _fmt_num(ys.sum_consumption),
+        _fmt_num(ys.sum_pc),
+        _fmt_num(ys.vej),
+        _fmt_pct(ys.pct_sumc_vej),
+    ]
+    cells: list = []
+    for v in vals:
+        cells.append(
+            <div class="min-w-0 truncate border-r border-slate-100 last:border-r-0 px-1.5 py-1 text-slate-800">
+                {v}
+            </div>
+        )
+    return cells
+
+
+def _year_block(yd: YearDetail) -> JSX:
+    """``<details>``: Jahreszeile; aufgeklappt direkt das Monatsraster (Grid)."""
+    ys = yd.summary
+    return (
+        <details class="not-prose border-b border-slate-200 bg-white last:border-b-0">
+            <summary class="cursor-pointer list-none grid grid-cols-7 gap-x-1 text-xs font-medium text-slate-800 hover:bg-slate-50 items-stretch [&::-webkit-details-marker]:hidden">
+                {_year_data_cells(ys)}
+            </summary>
+            <div class="border-t border-slate-200 bg-white px-2 py-2">{_month_grid(yd.months)}</div>
+        </details>
+    )
+
+
+def _boundary_block(sec: BoundarySection) -> JSX:
+    """Ein Block pro Grenze: Klick auf die Zusammenfassung klappt die Kalenderjahre auf."""
+    t = sec.total
+    th = ["Grenze", "Σ consumption", "Σ p·c", "VEJ", "Σc/VEJ %"]
+    tr = [
+        [
+            f"{sec.label} ({sec.key})",
+            _fmt_num(t.sum_consumption),
+            _fmt_num(t.sum_pc),
+            _fmt_num(t.vej),
+            _fmt_pct(t.pct_sumc_vej),
+        ]
+    ]
+    return (
+        <details class="not-prose my-4 border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+            <summary class="cursor-pointer list-none block w-full [&::-webkit-details-marker]:hidden">
+                {_grid(5, th, tr, style=_STYLE_TOTALS_GRID, flush=True)}
+            </summary>
+            <div class="border-t border-slate-200 px-2 pb-3 pt-2">
+                <div class="rounded-md border border-slate-200 overflow-hidden">
+                    {_year_header_row()}
+                    {[_year_block(yd) for yd in sec.years]}
+                </div>
+            </div>
+        </details>
+    )
+
+
+def report_page(
+    sections: list[BoundarySection],
+    ecu_floor: float,
+    periods_years: int,
+    n_months: int,
+    budget_method: str,
+    growth_by_boundary: list[tuple[str, float]],
+    demand_noise_std: float,
+    epsilon_noise_std: float,
+    seed: int | None,
+) -> JSX:
+    return (
+        <html lang="de">
+            {_head()}
+            <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+                <main class="max-w-5xl mx-auto px-4 py-6">
+                    {_run_params_block(
+                        ecu_floor,
+                        periods_years,
+                        n_months,
+                        budget_method,
+                        growth_by_boundary,
+                        demand_noise_std,
+                        epsilon_noise_std,
+                        seed,
+                    )}
+                    <h2 class="text-xl font-semibold text-slate-900 not-prose mt-2 mb-4">Grenzen</h2>
+                    <div class="not-prose space-y-2">{[_boundary_block(sec) for sec in sections]}</div>
+                </main>
+            </body>
+        </html>
+    )
