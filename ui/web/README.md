@@ -2,7 +2,7 @@
 
 ## Styling: Tailwind CSS + Typography
 
-Die Seiten [`home.px`](home.px) und [`report.px`](report.px) laden **`/static/app.css`** (gebaut mit [Tailwind](https://tailwindcss.com/) und dem Plugin [`@tailwindcss/typography`](https://github.com/tailwindlabs/tailwindcss-typography)). [`app.py`](app.py) mountet `static/` unter `/static`.
+Die Seiten [`home.px`](home.px) und [`report_view.px`](report_view.px) (über [`report.py`](report.py)) laden **`/static/app.css`** (gebaut mit [Tailwind](https://tailwindcss.com/) und dem Plugin [`@tailwindcss/typography`](https://github.com/tailwindlabs/tailwindcss-typography)). [`app.py`](app.py) mountet `static/` unter `/static`.
 
 Fließtext und Überschriften liegen in einem Container mit `prose prose-slate`; Raster und `<details>` stehen in `not-prose`, damit die Typography-Defaults die Tabellen nicht verzerren.
 

@@ -26,11 +26,25 @@ def group_results_by_calendar_year(
 
 
 @dataclass
+class YearlyEcuSummary:
+    """Pro Kalenderjahr über alle Grenzen: verbuchte ECU und Kontenrahmen (wie CLI ``print_yearly_ecu_table``)."""
+
+    year_index: int
+    n_months: int
+    ecu_floor: float
+    sum_ecu_expenditure: float
+    bundle_ecu: float
+    slack_vej: float
+    mean_utilization: float
+
+
+@dataclass
 class BoundaryTotalSummary:
     """Gesamtlauf über alle Monate für eine Grenze."""
 
     boundary_key: str
     sum_consumption: float
+    sum_demand_ref: float
     sum_pc: float
     vej: float
     pct_sumc_vej: float
@@ -44,9 +58,35 @@ class BoundaryYearSummary:
     n_months: int
     mean_price: float
     sum_consumption: float
+    sum_demand_ref: float
     sum_pc: float
     vej: float
     pct_sumc_vej: float
+
+
+def yearly_ecu_summaries(results: list[PeriodResult]) -> list[YearlyEcuSummary]:
+    """Jährliche Summen Σ p·c (verbuchte ECU) und Rahmengrößen — alle Grenzen zusammen."""
+    by_y = group_results_by_calendar_year(results)
+    out: list[YearlyEcuSummary] = []
+    for y in sorted(by_y.keys()):
+        mrows = by_y[y]
+        n = len(mrows)
+        sum_pc = sum(x.ecu_expenditure for x in mrows)
+        last = mrows[-1]
+        slack = last.bundle_ecu - last.ecu_floor
+        mean_u = sum(x.mean_utilization for x in mrows) / float(n)
+        out.append(
+            YearlyEcuSummary(
+                year_index=y,
+                n_months=n,
+                ecu_floor=last.ecu_floor,
+                sum_ecu_expenditure=sum_pc,
+                bundle_ecu=last.bundle_ecu,
+                slack_vej=slack,
+                mean_utilization=mean_u,
+            )
+        )
+    return out
 
 
 def boundary_total_summary(results: list[PeriodResult], boundary_key: str) -> BoundaryTotalSummary:
@@ -55,17 +95,20 @@ def boundary_total_summary(results: list[PeriodResult], boundary_key: str) -> Bo
         return BoundaryTotalSummary(
             boundary_key=boundary_key,
             sum_consumption=0.0,
+            sum_demand_ref=0.0,
             sum_pc=0.0,
             vej=0.0,
             pct_sumc_vej=float("nan"),
         )
     sum_c = sum(r.consumption[boundary_key] for r in results)
+    sum_d = sum(r.demand_at_reference_price[boundary_key] for r in results)
     sum_pc = sum(r.prices[boundary_key] * r.consumption[boundary_key] for r in results)
     vej = results[-1].vej[boundary_key]
     pct = (100.0 * sum_c / vej) if vej > 0 else float("nan")
     return BoundaryTotalSummary(
         boundary_key=boundary_key,
         sum_consumption=sum_c,
+        sum_demand_ref=sum_d,
         sum_pc=sum_pc,
         vej=vej,
         pct_sumc_vej=pct,
@@ -80,6 +123,7 @@ def boundary_year_summaries(results: list[PeriodResult], boundary_key: str) -> l
         mrows = by_y[y]
         n = len(mrows)
         sum_c = sum(x.consumption[boundary_key] for x in mrows)
+        sum_d = sum(x.demand_at_reference_price[boundary_key] for x in mrows)
         sum_pc = sum(x.prices[boundary_key] * x.consumption[boundary_key] for x in mrows)
         mean_p = sum(x.prices[boundary_key] for x in mrows) / float(n)
         vej = mrows[-1].vej[boundary_key]
@@ -90,6 +134,7 @@ def boundary_year_summaries(results: list[PeriodResult], boundary_key: str) -> l
                 n_months=n,
                 mean_price=mean_p,
                 sum_consumption=sum_c,
+                sum_demand_ref=sum_d,
                 sum_pc=sum_pc,
                 vej=vej,
                 pct_sumc_vej=pct,

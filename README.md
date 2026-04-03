@@ -48,7 +48,7 @@ Nach `uv sync --group web`:
 ```bash
 cd /pfad/zu/texte
 export PYTHONPATH=.
-uv run --project ecu_simulation uvicorn ecu_simulation.ui.web.app:app --reload
+uv run --project ecu_simulation uvicorn ecu_simulation.ui.web.app:app --reload --reload-include '*.px'
 ```
 
 **Darstellung:** [Tailwind CSS](https://tailwindcss.com/) mit [Tailwind Typography](https://github.com/tailwindlabs/tailwindcss-typography) liegt als gebaute Datei `ui/web/static/app.css` im Repo und wird unter `/static` ausgeliefert. Zum Neuaufbau nach Style-Änderungen: `npm run build:css` in `ui/web/`, siehe [ui/web/README.md](ui/web/README.md).

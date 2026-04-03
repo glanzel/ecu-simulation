@@ -23,8 +23,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="ECU-Terminalsimulation",
         epilog=(
-            f"Nachfrage-Wachstum: optional --growth mit drei Faktoren ({_GROWTH_ORDER}); "
-            "ohne Angabe bleibt der Faktor pro Grenze 1,0."
+            f"Listen (--growth, --d0-fraction): drei Werte in Reihenfolge {_GROWTH_ORDER}; "
+            "Trenner: | (in URLs ohne %2C), ; oder Komma. "
+            "Wachstum: Index 100 = Basis, 110 = +10 Prozent, 90 = −10 Prozent; "
+            "f₀: Anteil der VEJ in Prozent (Standard 45 ohne Option)."
         ),
     )
     p.add_argument("--ecu", type=float, default=None, help="EcuJ pro Jahr (Untergrenze Σ p·VEJ)")
@@ -43,8 +45,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         metavar="LISTE",
         help=(
-            f"Komma-getrennte multiplikative Nachfrage-Faktoren pro Monat für {_GROWTH_ORDER} "
-            "(drei Zahlen, z. B. 1.02,1,1). Ohne diese Option: Faktor 1,0 je Grenze."
+            f"Nachfrage-Index pro Monat ({_GROWTH_ORDER}); Faktor = Index/100, z. B. 102|100|100 (+2 %% auf co2). "
+            "100 = unverändert, 110 = +10 %%, 90 = −10 %%. Ohne diese Option: Faktor 1 (wie Index 100)."
+        ),
+    )
+    p.add_argument(
+        "--d0-fraction",
+        type=str,
+        default=None,
+        dest="d0_fraction",
+        metavar="LISTE",
+        help=(
+            f"Start-Anteil f_i als Prozent der VEJ bei Referenzpreis ({_GROWTH_ORDER}); "
+            "z. B. 42|45|48. Ohne diese Option: 45 %% je Grenze (Konfiguration)."
         ),
     )
     p.add_argument(
