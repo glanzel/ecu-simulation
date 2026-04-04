@@ -48,9 +48,9 @@ class PeriodResult:
     ecu_expenditure: float
     """Σ p·consumption — tatsächlich verbuchte ECU im Monat (Summe der Grenz-Spalte p·c)."""
     ecu_per_year: float
-    """Verteiltes ECU-Jahresvolumen (EcuJ), wie ``SimulationConfig.ecu_per_year``; in der Preislogik Untergrenze Σ p·VEJ."""
+    """Verteiltes ECU-Jahresvolumen (EcuJ), wie ``SimulationConfig.ecu_per_year``; in der Preislogik Ziel Σ p·VEJ."""
     mean_utilization: float
-    """Mittel aus min(consumption/VET, 1) über die drei Grenzen."""
+    """Mittel aus consumption/VET über die drei Grenzen (kann > 1 sein, z. B. Grenzüberschreitung)."""
     ecu_per_unit: dict[str, float]
     unit_per_ecu: dict[str, float]
     demand_at_reference_price: dict[str, float]
@@ -97,6 +97,7 @@ def run_one_period(
     price_elasticity: dict[str, float],
     ecu_per_year: float,
     budget_method: ConsumptionBudgetMethod,
+    fraction_of_vej: dict[str, float],
 ) -> tuple[dict[str, float], dict[str, float], float]:
     """
     Ein Monat: zuerst ``advance_shadow_prices`` (Preise für diesen Konsum),
@@ -104,7 +105,7 @@ def run_one_period(
     dann ein neues Intervall an der gemeinsamen Timeline.
     """
     timeline.ecu_per_year = ecu_per_year
-    advance_shadow_prices(timeline, vej)
+    advance_shadow_prices(timeline, vej, fraction_of_vej)
     p = timeline.prices_for_next_consumption
     if p is None:
         raise RuntimeError(
@@ -132,9 +133,9 @@ def run_one_period(
 
 
 def mean_boundary_utilization(consumption: dict[str, float], vet: dict[str, float]) -> float:
-    """Durchschnitt der Auslastung pro Grenze (consumption/VET, maximal 1)."""
+    """Durchschnitt der Auslastung pro Grenze (consumption/VET)."""
     parts = [
-        min(1.0, consumption[k] / vet[k]) if vet[k] > 0 else 0.0
+        consumption[k] / vet[k] if vet[k] > 0 else 0.0
         for k in BOUNDARY_KEYS
     ]
     return sum(parts) / len(parts)
@@ -143,22 +144,32 @@ def mean_boundary_utilization(consumption: dict[str, float], vet: dict[str, floa
 def run_simulation(
     cfg: SimulationConfig,
     months: int,
-    demand_growth_per_period: dict[str, float] | None = None,
+    demand_growth_per_year: dict[str, float] | None = None,
+    *,
+    steps_per_year: int = MONTHS_PER_YEAR,
 ) -> list[PeriodResult]:
     """
-    months: Anzahl Monate (ein Datenpunkt pro Monat).
-    demand_growth_per_period: multiplikativer Faktor pro Grenze pro Monat (z. B. nur co2 > 1).
+    months: Anzahl Zeitschritte (aktuell: ein Datenpunkt pro Monat).
+    demand_growth_per_year: multiplikativer Faktor pro Grenze **pro Kalenderjahr**
+    (Index/100 in CLI/Web). Pro Zeitschritt wird ``Faktor_jahr ** (1/steps_per_year)``
+    auf die Referenznachfrage angewendet — über ein volles Jahr ergibt sich der Jahresfaktor.
+    steps_per_year: Simulations­schritte pro Kalenderjahr (Standard 12 Monate; später z. B. 365 für täglich).
     Konsum: ``cfg.consumption_budget_method`` begrenzt ``Σ p·consumption ≤ ecu_per_year/12`` pro Monat.
     """
     if cfg.random_seed is not None:
         random.seed(cfg.random_seed)
+
+    if steps_per_year < 1:
+        raise ValueError("steps_per_year muss mindestens 1 sein.")
 
     vej = build_vej_bundle()
     vet = vet_from_vej(vej)
     base_epsilon = cfg.resolved_epsilon()
     frac = cfg.resolved_d0_fraction()
     demand_at_reference_price = {k: frac[k] * vet[k] for k in BOUNDARY_KEYS}
-    growth = demand_growth_per_period or {k: 1.0 for k in BOUNDARY_KEYS}
+    annual = demand_growth_per_year or {k: 1.0 for k in BOUNDARY_KEYS}
+    inv = float(steps_per_year)
+    growth_per_period = {k: annual[k] ** (1.0 / inv) for k in BOUNDARY_KEYS}
 
     ecu_per_year = cfg.ecu_per_year
     reference_shadow_price = reference_shadow_prices_for_demand(cfg, vej, ecu_per_year)
@@ -169,7 +180,7 @@ def run_simulation(
     epsilon_noise_std = cfg.epsilon_log_noise_std
     for t in range(months):
         demand_at_reference_price = {
-            k: demand_at_reference_price[k] * growth[k] for k in BOUNDARY_KEYS
+            k: demand_at_reference_price[k] * growth_per_period[k] for k in BOUNDARY_KEYS
         }
         if demand_noise_std > 0.0:
             for k in BOUNDARY_KEYS:
@@ -192,6 +203,7 @@ def run_simulation(
             price_elasticity,
             ecu_per_year,
             cfg.consumption_budget_method,
+            frac,
         )
         mean_u = mean_boundary_utilization(consumption, vet)
         xr = exchange_rates_for_shadow_prices(p)

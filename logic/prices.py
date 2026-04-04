@@ -1,11 +1,11 @@
 """
 Schattenpreise (ECU pro Einheit Kontrollvariable) mit Kopplung an die ECU-Jahresbilanz:
 
-  EcuJ ≤ Σ_i p_i · VEJ_i
+  Σ_i p_i · VEJ_i = EcuJ  (konfiguriertes Jahresbudget)
 
 Konvention: Pro Grenze ein ``float`` in ``dict[str, float]``; Schlüssel entsprechen
 ``BOUNDARY_KEYS``. Hilfsfunktionen skalieren Preise (u. a. ``enforce_ecu_floor``:
-gemeinsamer Faktor, sodass ``Σ p·VEJ`` die ECU-Untergrenze erreicht), leiten Updates
+gemeinsamer Faktor auf ``Σ p·VEJ = ecu_per_year``), leiten Updates
 aus der Verbrauchs-Timeline ab. Das verteilte ECU-Jahresvolumen (EcuJ) ist konfiguriert
 und wird **nicht** aus der Auslastung nachgeregelt.
 """
@@ -20,6 +20,61 @@ from ecu_simulation.logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR, Co
 from ecu_simulation.simulation.config import SimulationConfig
 
 
+def _bound_shadow_prices_vs_previous_interval(
+    previous_prices: dict[str, float],
+    proposed_prices: dict[str, float],
+    max_step_pct_per_year: float,
+) -> dict[str, float]:
+    """
+    Begrenzt je Grenze das Verhältnis ``p_neu / p_alt`` auf ``[1-p/100, 1+p/100]``.
+
+    Wenn ``max_step_pct_per_year <= 0``, bleibt ``proposed_prices`` unverändert.
+
+    Damit greift ``max_shadow_price_scale_pct_per_year`` nicht nur auf die gemeinsame
+    Normierung in ``enforce_ecu_floor``, sondern auch auf starke Schritte aus
+    Grenzüberschreitung (``price_bump``, elastische Multiplikatoren) und auf den Fall
+    ``ecu/Σ p·VEJ ≈ 1``, wo die innere Klemme praktisch nichts ändert.
+    """
+    if max_step_pct_per_year <= 0.0:
+        return proposed_prices
+    p = min(max(max_step_pct_per_year, 0.0), 100.0)
+    lo = 1.0 - p / 100.0
+    hi = 1.0 + p / 100.0
+    out: dict[str, float] = {}
+    for k in BOUNDARY_KEYS:
+        prev = previous_prices[k]
+        prop = proposed_prices[k]
+        if prev <= 0.0:
+            out[k] = prop
+            continue
+        ratio = prop / prev
+        ratio = max(lo, min(hi, ratio))
+        out[k] = prev * ratio
+    return out
+
+
+def _clamp_scale_toward_budget(
+    scale_factor: float,
+    max_scale_pct_per_year: float,
+) -> float:
+    """
+    Begrenzt den gemeinsamen Skalenfaktor Richtung Zielbudget:
+    Absenkung (``< 1``) und Hochskalierung (``> 1``) jeweils höchstens um ``p`` Prozent
+    gegenüber dem Eingang; ``max_scale_pct_per_year == 0`` = unbegrenzt.
+    """
+    if max_scale_pct_per_year <= 0.0:
+        return scale_factor
+    p = min(max(max_scale_pct_per_year, 0.0), 100.0)
+    s = scale_factor
+    if s < 1.0:
+        floor_factor = 1.0 - p / 100.0
+        s = max(s, floor_factor)
+    elif s > 1.0:
+        ceiling_factor = 1.0 + p / 100.0
+        s = min(s, ceiling_factor)
+    return s
+
+
 def bundle_value(prices: dict[str, float], vej: dict[str, float]) -> float:
     """
     Wert des VEJ-Bündels zu Schattenpreisen: ``Σ_i p_i · VEJ_i`` (ECU pro Jahr).
@@ -30,14 +85,57 @@ def bundle_value(prices: dict[str, float], vej: dict[str, float]) -> float:
     return sum(prices[k] * vej[k] for k in BOUNDARY_KEYS)
 
 
-def initial_shadow_prices_for_ecu(vej: dict[str, float], ecu_per_year: float) -> dict[str, float]:
+def bundle_value_at_vej_fractions(
+    prices: dict[str, float],
+    vej: dict[str, float],
+    fraction_of_vej: dict[str, float],
+) -> float:
     """
-    Start-Schattenpreise normiert auf ``ecu_per_year`` (Σ p·VEJ = ecu_per_year).
+    ``Σ_i p_i · f_i · VEJ_i`` (ECU pro Jahr): Jahreswert, wenn die Nutzung je Grenze den
+    Anteil ``f_i`` der VEJ beträgt (monatlich ``f_i · VET_i``).
+    """
+    return sum(prices[k] * fraction_of_vej[k] * vej[k] for k in BOUNDARY_KEYS)
 
-    Kombination aus gleichverteilten Gewichten und ``scale_to_ecu_budget``.
+
+def scale_to_ecu_budget_at_vej_fractions(
+    prices: dict[str, float],
+    vej: dict[str, float],
+    ecu_per_year: float,
+    fraction_of_vej: dict[str, float],
+) -> dict[str, float]:
+    """
+    Gemeinsamer Faktor auf allen Preisen, sodass
+    ``Σ_i p_i · f_i · VEJ_i = ecu_per_year`` (Referenzkonsum zu ``f_i`` füllt
+    monatlich ``Σ p·c = ecu_per_year/12``, wenn ``p`` der Referenzpreisvektor ist).
+
+    Immer **eine** exakte Normierung (Startpreise; kein ``max_shadow_price_scale`` —
+    der betrifft nur die iterative Σ p·VEJ-Anpassung nach Beobachtungen).
+    """
+    bundle_total = bundle_value_at_vej_fractions(prices, vej, fraction_of_vej)
+    if bundle_total <= 0:
+        raise ValueError("Summe p·VEJ·f muss positiv sein.")
+    scale_factor = ecu_per_year / bundle_total
+    return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
+
+
+def initial_shadow_prices_for_ecu(
+    vej: dict[str, float],
+    ecu_per_year: float,
+    fraction_of_vej: dict[str, float],
+) -> dict[str, float]:
+    """
+    Start-Schattenpreise: gleiche Gewichte wie bisher (``prices_from_weights``),
+    Normierung mit ``scale_to_ecu_budget_at_vej_fractions``, sodass
+    ``Σ p_i · f_i · VEJ_i = ecu_per_year`` — bei ``p = p_ref`` kostet der
+    Referenzkonsum ``f_i · VET_i`` genau den monatlichen ECU-Zuschlag ``EcuJ/12``.
     """
     raw = prices_from_weights(vej, ecu_per_year, initial_weights_uniform(len(BOUNDARY_KEYS)))
-    return scale_to_ecu_budget(raw, vej, ecu_per_year)
+    return scale_to_ecu_budget_at_vej_fractions(
+        raw,
+        vej,
+        ecu_per_year,
+        fraction_of_vej,
+    )
 
 
 def reference_shadow_prices_for_demand(
@@ -48,7 +146,11 @@ def reference_shadow_prices_for_demand(
     """
     Referenzpreise für die Nachfragefunktion: Start-Schattenpreise, dann ``resolved_p_ref``.
     """
-    initial = initial_shadow_prices_for_ecu(vej, ecu_per_year)
+    initial = initial_shadow_prices_for_ecu(
+        vej,
+        ecu_per_year,
+        cfg.resolved_d0_fraction(),
+    )
     return cfg.resolved_p_ref(initial)
 
 
@@ -56,18 +158,27 @@ def scale_to_ecu_budget(
     prices: dict[str, float],
     vej: dict[str, float],
     ecu_per_year: float,
+    *,
+    max_scale_pct_per_year: float = 0.0,
 ) -> dict[str, float]:
     """
-    Multipliziert alle Schattenpreise mit einem gemeinsamen Faktor, sodass
-    ``Σ_i p_i · VEJ_i = ecu_per_year`` gilt.
+    Multipliziert alle Schattenpreise mit einem gemeinsamen Faktor Richtung
+    ``Σ_i p_i · VEJ_i = ecu_per_year``.
 
-    Nützlich, um nach relativen Preisänderungen das ECU-Jahresbudget exakt
-    einzuhalten.
+    ``max_scale_pct_per_year == 0``: ein Schritt, exakt auf die Bilanz.
+
+    ``max_scale_pct_per_year > 0``: **ein** Schritt; der Faktor ``ecu/Σ p·VEJ`` wird
+    auf ``[1-p/100, 1+p/100]`` begrenzt (``_clamp_scale_toward_budget``). Pro Monat
+    bewegt sich die Preisnormierung so nur begrenzt Richtung Ziel — keine vollständige
+    Bilanz in einem Schritt. Startnormierung auf ``f·VEJ`` bleibt unabhängig davon
+    (``scale_to_ecu_budget_at_vej_fractions``).
     """
     bundle_total = bundle_value(prices, vej)
     if bundle_total <= 0:
         raise ValueError("Summe p·VEJ muss positiv sein.")
     scale_factor = ecu_per_year / bundle_total
+    if max_scale_pct_per_year > 0.0:
+        scale_factor = _clamp_scale_toward_budget(scale_factor, max_scale_pct_per_year)
     return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
 
@@ -75,21 +186,24 @@ def enforce_ecu_floor(
     prices: dict[str, float],
     vej: dict[str, float],
     ecu_per_year: float,
-    tol: float = 1e-12,
+    _tol: float = 1e-12,
+    *,
+    max_scale_pct_per_year: float = 0.0,
 ) -> dict[str, float]:
     """
-    Sichert die Mindestbilanz ``Σ p·VEJ ≥ ecu_per_year`` (numerisch mit Toleranz).
+    Normiert die Schattenpreise wie ``scale_to_ecu_budget`` Richtung ``Σ p·VEJ = ecu_per_year``.
 
-    Liegt die Bündelsumme bereits bei mindestens ``ecu_per_year`` (ggf. Toleranz),
-    bleiben die Preise unverändert (Überschuss möglich). Liegt sie darunter, wird
-    wie bei ``scale_to_ecu_budget`` auf genau ``ecu_per_year`` hochskaliert.
+    ``_tol`` bleibt in der Signatur (Aufrufer aus der Timeline); die Normierung nutzt
+    ihn nicht — bei ``max_scale_pct_per_year > 0`` gibt es ohnehin nur einen Teilschritt.
+
+    ``max_scale_pct_per_year``: siehe ``scale_to_ecu_budget``.
     """
-    bundle_total = bundle_value(prices, vej)
-    if bundle_total <= 0:
-        raise ValueError("Summe p·VEJ muss positiv sein.")
-    if bundle_total + tol < ecu_per_year:
-        return scale_to_ecu_budget(prices, vej, ecu_per_year)
-    return {k: prices[k] for k in BOUNDARY_KEYS}
+    return scale_to_ecu_budget(
+        prices,
+        vej,
+        ecu_per_year,
+        max_scale_pct_per_year=max_scale_pct_per_year,
+    )
 
 
 def consumption_all_below_vet(
@@ -166,7 +280,11 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
 
     if consumption_all_below_vet(consumption_last, vet_last, tol):
         final_prices = enforce_ecu_floor(
-            shadow_prices_last, vej_annual, ecu_per_year, tol
+            shadow_prices_last,
+            vej_annual,
+            ecu_per_year,
+            tol,
+            max_scale_pct_per_year=price_cfg.max_shadow_price_scale_pct_per_year,
         )
     else:
         candidate_prices = {k: shadow_prices_last[k] for k in BOUNDARY_KEYS}
@@ -207,10 +325,18 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
             )
 
         final_prices = enforce_ecu_floor(
-            candidate_prices, vej_annual, ecu_per_year, tol
+            candidate_prices,
+            vej_annual,
+            ecu_per_year,
+            tol,
+            max_scale_pct_per_year=price_cfg.max_shadow_price_scale_pct_per_year,
         )
 
-    return final_prices
+    return _bound_shadow_prices_vs_previous_interval(
+        shadow_prices_last,
+        final_prices,
+        price_cfg.max_shadow_price_scale_pct_per_year,
+    )
 
 
 def exchange_rates_for_shadow_prices(prices: dict[str, float]) -> ExchangeRates:
@@ -221,12 +347,13 @@ def exchange_rates_for_shadow_prices(prices: dict[str, float]) -> ExchangeRates:
 def advance_shadow_prices(
     timeline: ConsumptionTimeline,
     vej: dict[str, float],
+    fraction_of_vej: dict[str, float],
 ) -> ConsumptionTimeline:
     """
     Legt die Schattenpreise fest, **bevor** in dieser Periode konsumiert wird.
 
     - **Leere Timeline** (erster Monat): Startpreise über ``initial_shadow_prices_for_ecu``
-      (Schätzung auf Basis von jährlicher VEJ und ``ecu_per_year``), kein vorheriger Konsum.
+      (exakte Normierung ``Σ p·f·VEJ = EcuJ`` gemäß ``fraction_of_vej``); kein vorheriger Konsum.
     - **Sonst**: ``estimate_next_prices_from_timeline`` aus dem letzten Intervall.
 
     Setzt ``timeline.prices_for_next_consumption`` — die Simulation liest das und
@@ -234,7 +361,9 @@ def advance_shadow_prices(
     """
     if len(timeline) == 0:
         timeline.prices_for_next_consumption = initial_shadow_prices_for_ecu(
-            vej, timeline.ecu_per_year
+            vej,
+            timeline.ecu_per_year,
+            fraction_of_vej,
         )
         return timeline
     timeline.prices_for_next_consumption = estimate_next_prices_from_timeline(

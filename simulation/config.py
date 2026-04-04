@@ -14,14 +14,15 @@ from ecu_simulation.simulation.consumption_budget import ConsumptionBudgetMethod
 class SimulationConfig:
     """Start-EcuJ, dynamische Anpassung, Nachfrageparameter; Preislogik in ``price``."""
 
-    # Verteiltes ECU-Jahresvolumen EcuJ (konstant): Untergrenze ``Σ p·VEJ ≥ ecu_per_year``
-    # wird ausschließlich über gemeinsame Preisskalierung erreicht, nicht durch Änderung von EcuJ.
+    # Verteiltes ECU-Jahresvolumen EcuJ (konstant): Ziel ``Σ p·VEJ = ecu_per_year``
+    # über gemeinsame Preisskalierung, nicht durch Änderung von EcuJ.
     ecu_per_year: float = 100_000.0
     # Referenz-Schattenpreis p_ref,i (ECU/Einh.); Fallback: Start-Schattenpreis nach EcuJ-Normierung
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
-    # Anteil f_i: D_i(p_ref) startet als f_i·VET_i = f_i·VEJ_i/12 (isoelastisch bei Referenzpreis, monatlich)
+    # Anteil f_i der VEJ: D_i(p_ref) = f_i·VET_i (Referenznachfrage; „d0“ = Startanker der Kurve).
+    # Start-Schattenpreise werden so normiert, dass Σ p·(f·VET) = EcuJ/12 (Referenzkonsum am Budget).
     d0_fraction_of_vej: Mapping[str, float] = field(default_factory=dict)
     # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(N(0, σ²)); σ im Log-Raum, typ. ~0,3
     demand_at_reference_price_log_noise_std: float = 0.3

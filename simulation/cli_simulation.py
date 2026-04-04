@@ -25,11 +25,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         epilog=(
             f"Listen (--growth, --d0-fraction): drei Werte in Reihenfolge {_GROWTH_ORDER}; "
             "Trenner: | (in URLs ohne %2C), ; oder Komma. "
-            "Wachstum: Index 100 = Basis, 110 = +10 Prozent, 90 = −10 Prozent; "
+            "Wachstum: Index 100 = Basis, 110 = +10 Prozent pro Jahr, 90 = −10 Prozent pro Jahr; "
             "f₀: Anteil der VEJ in Prozent (Standard 45 ohne Option)."
         ),
     )
-    p.add_argument("--ecu", type=float, default=None, help="EcuJ pro Jahr (Untergrenze Σ p·VEJ)")
+    p.add_argument("--ecu", type=float, default=None, help="EcuJ pro Jahr (Ziel Σ p·VEJ)")
     p.add_argument(
         "--periods",
         type=int,
@@ -45,8 +45,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         metavar="LISTE",
         help=(
-            f"Nachfrage-Index pro Monat ({_GROWTH_ORDER}); Faktor = Index/100, z. B. 102|100|100 (+2 %% auf co2). "
-            "100 = unverändert, 110 = +10 %%, 90 = −10 %%. Ohne diese Option: Faktor 1 (wie Index 100)."
+            f"Nachfrage-Index pro Jahr ({_GROWTH_ORDER}); Jahresfaktor = Index/100, pro Zeitschritt (Index/100)^(1/steps_per_year) "
+            f"(steps_per_year={MONTHS_PER_YEAR} Monate/Jahr), "
+            "z. B. 102|100|100 (+2 %% auf co2 über ein Jahr). 100 = unverändert, 110 = +10 %%, 90 = −10 %%. "
+            "Ohne diese Option: Faktor 1 (wie Index 100)."
         ),
     )
     p.add_argument(
@@ -102,6 +104,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "'scale' = proportionale Drosselung nur wenn Rohkonsum die Grenze übersteigt; "
             "'lagrange' = bei Überschreitung Cobb-Douglas-Aufteilung mit Budget = EcuJ. "
             "Standard: scale (Konfiguration)."
+        ),
+    )
+    p.add_argument(
+        "--price-max-scale-pct",
+        type=float,
+        default=None,
+        dest="price_max_scale_pct",
+        metavar="PCT",
+        help=(
+            "Schattenpreise: max. Schritt pro Monat in Prozent — gemeinsamer Faktor bei Σ p·VEJ-Normierung "
+            "und je Grenze Verhältnis zum Vormonat (p_neu/p_alt in [1−p/100, 1+p/100]); "
+            "0 = keine Begrenzung (Standard)."
         ),
     )
     return p.parse_args(argv)
@@ -198,8 +212,8 @@ def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) ->
         "**Σ p·c (Mon.)** = verbuchte ECU im Monat (Summe der Grenztabellen), typ. ≤ EcuJ/12. "
         "**Σ p·VEJ** = hypothetischer Jahreswert zum Monatspreisvektor — "
         "Schattenpreis-/Bilanzlogik; **nicht** gleich der Monatsausgabe. "
-        "*Slack = Σ p·VEJ − EcuJ (Preisuntergrenze). "
-        "Ø Auslastung = Mittel aus min(consumption/VET, 1)."
+        "*Slack = Σ p·VEJ − EcuJ (nach Preisnormierung ~0, Rundung). "
+        "Ø Auslastung = Mittel aus consumption/VET je Grenze (Verhältnis, kann > 1 bei Grenzüberschreitung)."
     )
 
 
@@ -238,10 +252,9 @@ def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> Non
             f"{mean_u:10.4f}"
         )
     print(
-        f"Legende · **Σ p·c (Jahr)** = Summe der monatlichen Ausgaben (≤ EcuJ bei 12 Vollmonaten). "
+        f"Legende · **Σ p·c (Jahr)** = Summe der monatlichen Ausgaben (≤ EcuJ bei 12 Monaten pro Jahr). "
         f"**Σ p·VEJ*** = Wert aus dem **letzten Monat** des Jahres (Preis-/Bilanzrahmen). "
-        f"*Slack* = Σ p·VEJ − EcuJ wie in jenem Monat. "
-        f"Ist das letzte Jahr kürzer als 12 Monate, ist die Summe entsprechend kleiner."
+        f"*Slack* = Σ p·VEJ − EcuJ (letzter Monat; nach Normierung ~0)."
     )
 
 
@@ -320,6 +333,48 @@ def _fmt_pct_delta(new: float, old: float) -> str:
     return f"{d:+.2f}"
 
 
+def print_monthly_price_sums(results: list[PeriodResult]) -> None:
+    """
+    Monatsübersicht: Σ p·c, Σ p, Δ, Mittel der Auslastung (wie ``PeriodResult.mean_utilization``).
+    """
+    if not results:
+        return
+    w = 94
+    print(f"\n{'─' * w}")
+    print("  Monatsübersicht (Σ p·c, Auslastung)")
+    print(f"{'─' * w}")
+    print(
+        f"{'Mon':>4}  "
+        f"{'Σ p·c':>16}  "
+        f"{'Σ p':>16}  "
+        f"{'Δ Σp·c %':>12}  "
+        f"{'Ø Auslast.':>10}"
+    )
+    print("-" * w)
+    prev_pc: float | None = None
+    for r in results:
+        sum_p = sum(r.prices[k] for k in BOUNDARY_KEYS)
+        pc = r.ecu_expenditure
+        if prev_pc is None:
+            dstr = "—"
+        else:
+            d = _pct_change(pc, prev_pc)
+            dstr = f"{d:+.4f}" if d == d else "n/a"
+        print(
+            f"{r.period:4d}  "
+            f"{pc:16.8g}  "
+            f"{sum_p:16.8g}  "
+            f"{dstr:>12}  "
+            f"{r.mean_utilization:10.4f}"
+        )
+        prev_pc = pc
+    print(
+        "Legende: Σ p·c = Σ_i p_i·consumption_i (monatlich verbuchte ECU). "
+        "Σ p = Summe der drei Schattenpreise. Δ = Änderung von Σ p·c zum Vormonat (%). "
+        "Ø Auslast. = Mittel aus consumption/VET je Grenze (kann > 1)."
+    )
+
+
 def print_report(
     results: list[PeriodResult],
     cfg: SimulationConfig,
@@ -349,6 +404,7 @@ def print_report(
         "Preislogik (jährlich): **EcuJ ≤ Σ p_i·VEJ_i** (volles VEJ-Bündel — kann über der Monatsausgabe liegen). "
         "Isoelastische Kurve aus demand; Budgetabbildung in der Simulation."
     )
+    print_monthly_price_sums(results)
     print_yearly_ecu_table(results, cfg.ecu_per_year)
     print_yearly_boundary_tables(results)
     print_boundary_tables(results)
@@ -372,7 +428,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as e:
         raise SystemExit(str(e)) from e
     months = params.periods_years * MONTHS_PER_YEAR
-    results = run_simulation(cfg, months, demand_growth_per_period=growth)
+    results = run_simulation(cfg, months, demand_growth_per_year=growth)
     print_report(results, cfg, simulation_years=params.periods_years)
     return 0
 

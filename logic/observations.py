@@ -126,7 +126,7 @@ class ConsumptionTimeline:
     """Geordnete Intervalle mit ECU-Jahresvolumen und Preis-Konfiguration (fortlaufend über die Simulation)."""
 
     ecu_per_year: float
-    """EcuJ pro Jahr (wie ``SimulationConfig.ecu_per_year``); in der Preislogik Ziel/Untergrenze für Σ p·VEJ."""
+    """EcuJ pro Jahr (wie ``SimulationConfig.ecu_per_year``); in der Preislogik Ziel für Σ p·VEJ."""
     price_config: PriceConfig
     prices_for_next_consumption: dict[str, float] | None = None
     """Von ``advance_shadow_prices`` gesetzt: Schattenpreise für den nächsten Konsum (leeres Timeline → Schätzstart)."""
