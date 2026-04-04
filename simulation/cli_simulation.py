@@ -184,10 +184,10 @@ def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) ->
     )
     print("-" * w)
     for r in results:
-        slack_vej = r.bundle_ecu - r.ecu_floor
+        slack_vej = r.bundle_ecu - r.ecu_per_year
         print(
             f"{r.period:4d}  "
-            f"{r.ecu_floor:14.8g}  "
+            f"{r.ecu_per_year:14.8g}  "
             f"{r.ecu_expenditure:14.8g}  "
             f"{r.bundle_ecu:14.8g}  "
             f"{slack_vej:10.6g}  "
@@ -227,11 +227,11 @@ def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> Non
         n = len(rows)
         sum_pc = sum(x.ecu_expenditure for x in rows)
         last = rows[-1]
-        slack = last.bundle_ecu - last.ecu_floor
+        slack = last.bundle_ecu - last.ecu_per_year
         mean_u = sum(x.mean_utilization for x in rows) / float(n)
         print(
             f"{y:4d}  {n:6d}  "
-            f"{last.ecu_floor:14.8g}  "
+            f"{last.ecu_per_year:14.8g}  "
             f"{sum_pc:14.8g}  "
             f"{last.bundle_ecu:14.8g}  "
             f"{slack:10.6g}  "

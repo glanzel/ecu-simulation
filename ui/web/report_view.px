@@ -78,7 +78,7 @@ def _d0_one_line(d0_by_boundary: list[tuple[str, float]]) -> str:
 
 
 def _run_params_block(
-    ecu_floor: float,
+    ecu_per_year: float,
     periods_years: int,
     n_months: int,
     budget_method: str,
@@ -91,7 +91,7 @@ def _run_params_block(
     """Kompakt: eine Zeile Kernparameter, darunter Wachstum und f₀ (VEJ-Anteil)."""
     hdr = ["EcuJ", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
     row1 = [
-        _fmt_num(ecu_floor),
+        _fmt_num(ecu_per_year),
         str(periods_years),
         budget_method,
         _fmt_num(demand_noise_std),
@@ -121,18 +121,15 @@ def _run_params_block(
 
 
 def _global_yearly_ecu_block(rows: list[YearlyEcuSummary]) -> JSX:
-    """Summe verbuchter ECU je Jahr über alle Grenzen (entspricht CLI-Jahresübersicht)."""
+    """Pro Jahr: Preis-/Kontenrahmen (Σ p·VEJ, Slack) und mittlere Auslastung — Werte wie in der CLI-Jahreszeile."""
     if not rows:
         return <span />
-    hdr = ["Jahr", "Mon.", "EcuJ", "Σ p·c (Jahr)", "Σ p·VEJ", "Slack", "Ø Auslast."]
+    hdr = ["Jahr", "Σ p·VEJ", "Slack", "Ø Auslast."]
     rrows: list[list[str]] = []
     for y in rows:
         rrows.append(
             [
                 str(y.year_index),
-                str(y.n_months),
-                _fmt_num(y.ecu_floor),
-                _fmt_num(y.sum_ecu_expenditure),
                 _fmt_num(y.bundle_ecu),
                 _fmt_num(y.slack_vej),
                 _fmt_pct(y.mean_utilization),
@@ -144,10 +141,11 @@ def _global_yearly_ecu_block(rows: list[YearlyEcuSummary]) -> JSX:
                 Jahresübersicht — ECU (alle Grenzen)
             </p>
             <div class="border border-slate-200/80 bg-white shadow-sm">
-                {_grid(7, hdr, rrows, report_style=True, flush=False, extra_classes="my-0 border-0 shadow-none")}
+                {_grid(4, hdr, rrows, report_style=True, flush=False, extra_classes="my-0 border-0 shadow-none")}
                 <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-500 leading-snug">
-                    Σ p·c (Jahr) = Summe der monatlichen verbuchten ECU; Σ p·VEJ und Slack aus dem letzten Monat des Jahres
-                    (Preisrahmen).
+                    Σ p·VEJ und Slack = ECU-Wert des planetaren Rahmens (letzter Monat); Slack = Σ p·VEJ − EcuJ
+                    (Preis-/Bilanzlogik). Ø Auslast. = Mittel aus min(Konsum/VET, 1) je Grenze — Mengen an der
+                    Monatsgrenze VET, nicht dasselbe wie Slack.
                 </div>
             </div>
         </section>
@@ -381,7 +379,7 @@ def _boundary_block(sec: BoundarySection) -> JSX:
 def report_page(
     sections: list[BoundarySection],
     yearly_ecu: list[YearlyEcuSummary],
-    ecu_floor: float,
+    ecu_per_year: float,
     periods_years: int,
     n_months: int,
     budget_method: str,
@@ -397,7 +395,7 @@ def report_page(
             <body class="min-h-screen bg-slate-100/90 text-slate-900 antialiased">
                 <main class="max-w-5xl mx-auto px-4 py-5">
                     {_run_params_block(
-                        ecu_floor,
+                        ecu_per_year,
                         periods_years,
                         n_months,
                         budget_method,

@@ -30,25 +30,25 @@ def bundle_value(prices: dict[str, float], vej: dict[str, float]) -> float:
     return sum(prices[k] * vej[k] for k in BOUNDARY_KEYS)
 
 
-def initial_shadow_prices_for_ecu(vej: dict[str, float], ecu_floor: float) -> dict[str, float]:
+def initial_shadow_prices_for_ecu(vej: dict[str, float], ecu_per_year: float) -> dict[str, float]:
     """
-    Start-Schattenpreise normiert auf ``ecu_floor`` (Σ p·VEJ = ecu_floor).
+    Start-Schattenpreise normiert auf ``ecu_per_year`` (Σ p·VEJ = ecu_per_year).
 
     Kombination aus gleichverteilten Gewichten und ``scale_to_ecu_budget``.
     """
-    raw = prices_from_weights(vej, ecu_floor, initial_weights_uniform(len(BOUNDARY_KEYS)))
-    return scale_to_ecu_budget(raw, vej, ecu_floor)
+    raw = prices_from_weights(vej, ecu_per_year, initial_weights_uniform(len(BOUNDARY_KEYS)))
+    return scale_to_ecu_budget(raw, vej, ecu_per_year)
 
 
 def reference_shadow_prices_for_demand(
     cfg: SimulationConfig,
     vej: dict[str, float],
-    ecu_floor: float,
+    ecu_per_year: float,
 ) -> dict[str, float]:
     """
     Referenzpreise für die Nachfragefunktion: Start-Schattenpreise, dann ``resolved_p_ref``.
     """
-    initial = initial_shadow_prices_for_ecu(vej, ecu_floor)
+    initial = initial_shadow_prices_for_ecu(vej, ecu_per_year)
     return cfg.resolved_p_ref(initial)
 
 
@@ -74,21 +74,21 @@ def scale_to_ecu_budget(
 def enforce_ecu_floor(
     prices: dict[str, float],
     vej: dict[str, float],
-    ecu_floor: float,
+    ecu_per_year: float,
     tol: float = 1e-12,
 ) -> dict[str, float]:
     """
-    Sichert die Mindestbilanz ``Σ p·VEJ ≥ ecu_floor`` (numerisch mit Toleranz).
+    Sichert die Mindestbilanz ``Σ p·VEJ ≥ ecu_per_year`` (numerisch mit Toleranz).
 
-    Liegt die Bündelsumme bereits bei mindestens ``ecu_floor`` (ggf. Toleranz),
+    Liegt die Bündelsumme bereits bei mindestens ``ecu_per_year`` (ggf. Toleranz),
     bleiben die Preise unverändert (Überschuss möglich). Liegt sie darunter, wird
-    wie bei ``scale_to_ecu_budget`` auf genau ``ecu_floor`` hochskaliert.
+    wie bei ``scale_to_ecu_budget`` auf genau ``ecu_per_year`` hochskaliert.
     """
     bundle_total = bundle_value(prices, vej)
     if bundle_total <= 0:
         raise ValueError("Summe p·VEJ muss positiv sein.")
-    if bundle_total + tol < ecu_floor:
-        return scale_to_ecu_budget(prices, vej, ecu_floor)
+    if bundle_total + tol < ecu_per_year:
+        return scale_to_ecu_budget(prices, vej, ecu_per_year)
     return {k: prices[k] for k in BOUNDARY_KEYS}
 
 
@@ -147,14 +147,14 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
     """
     Leitet die Schattenpreise für den **nächsten** Konsum aus dem letzten Intervall ab.
 
-    Nutzt ``timeline.ecu_floor`` und ``timeline.price_config``. Rückgabe wird von
+    Nutzt ``timeline.ecu_per_year`` und ``timeline.price_config``. Rückgabe wird von
     ``advance_shadow_prices`` in ``prices_for_next_consumption`` übernommen.
     """
     if len(timeline) == 0:
         raise ValueError("timeline muss mindestens ein ConsumptionInterval enthalten.")
 
     price_cfg = timeline.price_config
-    ecu_floor = timeline.ecu_floor
+    ecu_per_year = timeline.ecu_per_year
     last_interval = timeline.last
     tol = price_cfg.tolerance
     default_price_multiplier = price_cfg.price_bump
@@ -166,7 +166,7 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
 
     if consumption_all_below_vet(consumption_last, vet_last, tol):
         final_prices = enforce_ecu_floor(
-            shadow_prices_last, vej_annual, ecu_floor, tol
+            shadow_prices_last, vej_annual, ecu_per_year, tol
         )
     else:
         candidate_prices = {k: shadow_prices_last[k] for k in BOUNDARY_KEYS}
@@ -207,7 +207,7 @@ def estimate_next_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[st
             )
 
         final_prices = enforce_ecu_floor(
-            candidate_prices, vej_annual, ecu_floor, tol
+            candidate_prices, vej_annual, ecu_per_year, tol
         )
 
     return final_prices
@@ -226,7 +226,7 @@ def advance_shadow_prices(
     Legt die Schattenpreise fest, **bevor** in dieser Periode konsumiert wird.
 
     - **Leere Timeline** (erster Monat): Startpreise über ``initial_shadow_prices_for_ecu``
-      (Schätzung auf Basis von jährlicher VEJ und ``ecu_floor``), kein vorheriger Konsum.
+      (Schätzung auf Basis von jährlicher VEJ und ``ecu_per_year``), kein vorheriger Konsum.
     - **Sonst**: ``estimate_next_prices_from_timeline`` aus dem letzten Intervall.
 
     Setzt ``timeline.prices_for_next_consumption`` — die Simulation liest das und
@@ -234,7 +234,7 @@ def advance_shadow_prices(
     """
     if len(timeline) == 0:
         timeline.prices_for_next_consumption = initial_shadow_prices_for_ecu(
-            vej, timeline.ecu_floor
+            vej, timeline.ecu_per_year
         )
         return timeline
     timeline.prices_for_next_consumption = estimate_next_prices_from_timeline(
