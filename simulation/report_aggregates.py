@@ -31,7 +31,7 @@ class YearlyEcuSummary:
 
     year_index: int
     n_months: int
-    ecu_floor: float
+    ecu_per_year: float
     sum_ecu_expenditure: float
     bundle_ecu: float
     slack_vej: float
@@ -73,13 +73,13 @@ def yearly_ecu_summaries(results: list[PeriodResult]) -> list[YearlyEcuSummary]:
         n = len(mrows)
         sum_pc = sum(x.ecu_expenditure for x in mrows)
         last = mrows[-1]
-        slack = last.bundle_ecu - last.ecu_floor
+        slack = last.bundle_ecu - last.ecu_per_year
         mean_u = sum(x.mean_utilization for x in mrows) / float(n)
         out.append(
             YearlyEcuSummary(
                 year_index=y,
                 n_months=n,
-                ecu_floor=last.ecu_floor,
+                ecu_per_year=last.ecu_per_year,
                 sum_ecu_expenditure=sum_pc,
                 bundle_ecu=last.bundle_ecu,
                 slack_vej=slack,

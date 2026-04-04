@@ -47,8 +47,8 @@ class PeriodResult:
     """Σ p·VEJ — Wert des vollen VEJ-Bündels zu den Schattenpreisen (Preis-/Kontenrahmen, jährlich)."""
     ecu_expenditure: float
     """Σ p·consumption — tatsächlich verbuchte ECU im Monat (Summe der Grenz-Spalte p·c)."""
-    ecu_floor: float
-    """Untergrenze EcuJ (jährlich; Preislogik Σ p·VEJ)."""
+    ecu_per_year: float
+    """Verteiltes ECU-Jahresvolumen (EcuJ), wie ``SimulationConfig.ecu_per_year``; in der Preislogik Untergrenze Σ p·VEJ."""
     mean_utilization: float
     """Mittel aus min(consumption/VET, 1) über die drei Grenzen."""
     ecu_per_unit: dict[str, float]
@@ -95,15 +95,15 @@ def run_one_period(
     demand_at_reference_price: dict[str, float],
     reference_shadow_price: dict[str, float],
     price_elasticity: dict[str, float],
-    ecu_floor_annual: float,
+    ecu_per_year: float,
     budget_method: ConsumptionBudgetMethod,
 ) -> tuple[dict[str, float], dict[str, float], float]:
     """
     Ein Monat: zuerst ``advance_shadow_prices`` (Preise für diesen Konsum),
-    dann Roh-Nachfrage, ggf. Drosselung auf ``Σ p·c ≤ ecu_floor_annual/12`` via ``budget_method``,
+    dann Roh-Nachfrage, ggf. Drosselung auf ``Σ p·c ≤ ecu_per_year/12`` via ``budget_method``,
     dann ein neues Intervall an der gemeinsamen Timeline.
     """
-    timeline.ecu_floor = ecu_floor_annual
+    timeline.ecu_per_year = ecu_per_year
     advance_shadow_prices(timeline, vej)
     p = timeline.prices_for_next_consumption
     if p is None:
@@ -113,7 +113,7 @@ def run_one_period(
     raw = _raw_consumption_at_prices(
         p, demand_at_reference_price, reference_shadow_price, price_elasticity
     )
-    ecu_ceiling_month = ecu_floor_annual / float(MONTHS_PER_YEAR)
+    ecu_ceiling_month = ecu_per_year / float(MONTHS_PER_YEAR)
     c = apply_consumption_budget(raw, p, ecu_ceiling_month, budget_method)
     vet = vet_from_vej(vej)
     timeline.append(
@@ -160,10 +160,10 @@ def run_simulation(
     demand_at_reference_price = {k: frac[k] * vet[k] for k in BOUNDARY_KEYS}
     growth = demand_growth_per_period or {k: 1.0 for k in BOUNDARY_KEYS}
 
-    ecu_floor = cfg.ecu_per_year
-    reference_shadow_price = reference_shadow_prices_for_demand(cfg, vej, ecu_floor)
+    ecu_per_year = cfg.ecu_per_year
+    reference_shadow_price = reference_shadow_prices_for_demand(cfg, vej, ecu_per_year)
 
-    timeline = ConsumptionTimeline(ecu_floor=ecu_floor, price_config=cfg.price)
+    timeline = ConsumptionTimeline(ecu_per_year=ecu_per_year, price_config=cfg.price)
     results: list[PeriodResult] = []
     demand_noise_std = cfg.demand_at_reference_price_log_noise_std
     epsilon_noise_std = cfg.epsilon_log_noise_std
@@ -190,7 +190,7 @@ def run_simulation(
             demand_at_reference_price,
             reference_shadow_price,
             price_elasticity,
-            ecu_floor,
+            ecu_per_year,
             cfg.consumption_budget_method,
         )
         mean_u = mean_boundary_utilization(consumption, vet)
@@ -205,7 +205,7 @@ def run_simulation(
                 vet=vet,
                 bundle_ecu=bv,
                 ecu_expenditure=ecu_expenditure,
-                ecu_floor=ecu_floor,
+                ecu_per_year=ecu_per_year,
                 mean_utilization=mean_u,
                 ecu_per_unit=xr.ecu_per_unit,
                 unit_per_ecu=xr.unit_per_ecu,

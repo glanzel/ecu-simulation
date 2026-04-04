@@ -105,7 +105,7 @@ def report(
     page = report_page(
         sections=sections,
         yearly_ecu=yearly_ecu_summaries(results),
-        ecu_floor=last.ecu_floor,
+        ecu_per_year=last.ecu_per_year,
         periods_years=params.periods_years,
         n_months=len(results),
         budget_method=cfg.consumption_budget_method.value,
