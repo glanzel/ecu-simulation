@@ -73,6 +73,7 @@ def report(
     epsilon_noise_std: float | None = Query(None),
     seed: int | None = Query(None),
     consumption_budget: str | None = Query(None),
+    price_max_scale_pct: float | None = Query(None),
 ) -> HTMLResponse:
     params = RunParams.from_web_query(
         ecu=ecu,
@@ -83,6 +84,7 @@ def report(
         epsilon_noise_std=epsilon_noise_std,
         seed=seed,
         consumption_budget=consumption_budget,
+        price_max_scale_pct=price_max_scale_pct,
     )
     cfg = default_config()
     try:
@@ -94,7 +96,7 @@ def report(
     except ValueError as e:
         return HTMLResponse(f"<pre>Fehler: {e}</pre>", status_code=400)
     months = params.periods_years * MONTHS_PER_YEAR
-    results = run_simulation(cfg, months, demand_growth_per_period=growth_d)
+    results = run_simulation(cfg, months, demand_growth_per_year=growth_d)
     if not results:
         return HTMLResponse("<p>Keine Ergebnisse.</p>")
     sections = build_boundary_sections(results)

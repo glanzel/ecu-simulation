@@ -58,7 +58,7 @@ def _fmt_seed(s: int | None) -> str:
 
 
 def _growth_one_line(growth_by_boundary: list[tuple[str, float]]) -> str:
-    """``v`` ist Faktor/Monat; Anzeige als Index (100 = Basis)."""
+    """``v`` ist Jahresfaktor; Anzeige als Index (100 = Basis)."""
     parts = []
     for k, v in growth_by_boundary:
         idx = v * 100.0
@@ -106,7 +106,7 @@ def _run_params_block(
             <div class="border border-slate-200/80 bg-white shadow-sm">
                 {_grid(6, hdr, [row1], report_style=True, flush=False, extra_classes="my-0 border-0 shadow-none")}
                 <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
-                    <span class="font-medium text-slate-500">Wachstum (Index, 100 = Basis)</span>
+                    <span class="font-medium text-slate-500">Wachstum (Index/Jahr, 100 = Basis)</span>
                     {": "}
                     {gline}
                 </div>
@@ -144,7 +144,7 @@ def _global_yearly_ecu_block(rows: list[YearlyEcuSummary]) -> JSX:
                 {_grid(4, hdr, rrows, report_style=True, flush=False, extra_classes="my-0 border-0 shadow-none")}
                 <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-500 leading-snug">
                     Σ p·VEJ und Slack = ECU-Wert des planetaren Rahmens (letzter Monat); Slack = Σ p·VEJ − EcuJ
-                    (Preis-/Bilanzlogik). Ø Auslast. = Mittel aus min(Konsum/VET, 1) je Grenze — Mengen an der
+                    (nach Preisnormierung ~0). Ø Auslast. = Mittel aus Konsum/VET je Grenze (kann {">"} 1) — Mengen an der
                     Monatsgrenze VET, nicht dasselbe wie Slack.
                 </div>
             </div>
