@@ -57,7 +57,7 @@ class RunParams:
     (100 = kein Wachstum, 110 = +10 %, 90 = −10 % **pro Jahr**; pro Zeitschritt ``(Index/100)^(1/steps_per_year)``,
     vgl. ``run_simulation(..., steps_per_year=…)`` — Standard 12 Monate, später z. B. 365 täglich).
     ``d0_fraction``: Anteil der VEJ in % (Anteil = p/100).
-    ``price_max_scale_pct`` (optional): max. Schattenpreis-Schritt pro Monat in % (Σ p·VEJ-Faktor und p_neu/p_alt je Grenze; 0 = unbegrenzt).
+    ``price_max_scale_pct`` (optional): p in % — bei hoher Auslastung geklemmte Σ p·VEJ-Normierung, sonst exakt; 0 = immer exakt.
     """
 
     ecu: float | None = None
