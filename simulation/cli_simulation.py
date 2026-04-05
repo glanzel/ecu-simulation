@@ -113,9 +113,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="price_max_scale_pct",
         metavar="PCT",
         help=(
-            "Schattenpreise: max. Schritt pro Monat in Prozent — gemeinsamer Faktor bei Σ p·VEJ-Normierung "
-            "und je Grenze Verhältnis zum Vormonat (p_neu/p_alt in [1−p/100, 1+p/100]); "
-            "0 = keine Begrenzung (Standard)."
+            "Wenn mittlere Auslastung (letzter Monat) > 1 + p/100: Normierung Σ p·VEJ mit geklemmtem "
+            "Faktor in [1−p/100, 1+p/100]; sonst exakte Normierung. 0 = immer exakt (Standard)."
         ),
     )
     return p.parse_args(argv)

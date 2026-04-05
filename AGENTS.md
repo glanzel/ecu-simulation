@@ -13,4 +13,7 @@ Konsequent objektorientiert: Domänenzustand und Verhalten gehören in Klassen.
 - Logik in Klassenmethoden kapseln; Konstruktor/Fabriken setzen Abhängigkeiten, danach läuft das Verhalten über Methoden.
 - Funktionale Programmierung vermeiden: keine „Pipeline“ aus vielen `map`/`filter`/Funktionsketten als Kernlogik.
 - Hilfsfunktionen nur für generische Utilities; fachliche Entscheidungen als Methoden (ggf. `private`).
+- **Funktionsaufrufe:** Wo möglich in einer Zeile. Bei sehr langen Zeilen darf der Aufruf eingerückt umbrochen werden (Fortsetzung in der nächsten Zeile). 
+- **Funktionsdefinition:** Wo möglich in einer Zeile. Bei sehr langen Zeilen darf der Aufruf eingerückt umbrochen werden (Fortsetzung in der nächsten Zeile). **Nicht** die „eine Zeile pro Argument/Variable“-Formatierung — keine vertikal gestapelte Argumentliste.
+
 
