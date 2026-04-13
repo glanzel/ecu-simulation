@@ -1,0 +1,149 @@
+"""
+Verbrauchsbeobachtungen: Werte je planetarer Grenze, Zeitabschnitte und Timeline.
+
+Pro Grenze werden Skalare in ``ConsumptionRecord`` gehalten; gebündelte
+Schattenpreise/Konsum/VET in der Simulation als ``dict[str, float]`` mit
+Schlüsseln aus ``BOUNDARY_KEYS``. **VET** = zulässige Menge pro Monat (VEJ/12);
+Konsum ``value`` ist pro Monat in derselben Einheit.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from ecu.logic.planetary_constants import ALL_BOUNDARIES
+from ecu.logic.price_config import PriceConfig
+
+# Reihenfolge der Grenzen (Schlüssel) — zentral hier, damit keine Zirkelimporte mit ``config`` nötig sind
+BOUNDARY_KEYS: tuple[str, ...] = ("co2", "hanpp", "nitrogen")
+
+# Kalender: glatt 365 Tage pro Jahr, kein Schaltjahr
+DAYS_PER_YEAR: float = 365.0
+MONTHS_PER_YEAR: int = 12
+DAYS_PER_MONTH: float = DAYS_PER_YEAR / float(MONTHS_PER_YEAR)
+
+
+def _canonical_unit_for_boundary(key: str) -> str:
+    for b in ALL_BOUNDARIES:
+        if b.key == key:
+            if key == "co2":
+                return "Mt CO₂ Monat⁻¹"
+            if key == "hanpp":
+                return "Anteil (0–1), Monatsfluss wie VET"
+            if key == "nitrogen":
+                return "kt N Monat⁻¹"
+            return b.unit_note[:40]
+    return ""
+
+
+@dataclass
+class ConsumptionRecord:
+    """Eine Kontrollvariable innerhalb eines Beobachtungsabschnitts (ein Monat)."""
+
+    control_variable_key: str
+    unit: str
+    value: float
+    """Beobachteter Konsum im Intervall (pro Monat, konsistent zu ``vet``)."""
+    vet: float
+    """Zulässige Menge pro Monat (jährliche VEJ / 12)."""
+    price: float
+    """Schattenpreis, zu dem ``value`` beobachtet wurde."""
+    demand_at_reference_price: float | None = None
+    """Nachfrage-Skalierung bei p_ref für diese Grenze (optional, pro Beobachtung)."""
+    reference_shadow_price: float | None = None
+    """Referenz-Schattenpreis p_ref (optional, pro Beobachtung)."""
+
+
+@dataclass
+class ConsumptionInterval:
+    """Ein Zeitabschnitt (typ. ein Monat) mit Verbrauchszeilen je Grenze."""
+
+    datum: int
+    """Laufindex der Beobachtung (Monat)."""
+    zeitraum_days: float
+    """Länge des zugehörigen Zeitbereichs in Tagen (typ. ``DAYS_PER_MONTH``)."""
+    records: list[ConsumptionRecord] = field(default_factory=list)
+
+    def record_for_key(self, key: str) -> ConsumptionRecord:
+        """Liefert den Record zur Grenze ``key`` (liefert KeyError bei Fehlen)."""
+        for r in self.records:
+            if r.control_variable_key == key:
+                return r
+        raise KeyError(f"Keine ConsumptionRecord für key={key!r}.")
+
+    def price_for(self, key: str) -> float:
+        """Schattenpreis ``p`` aus dem Record."""
+        return self.record_for_key(key).price
+
+    def consumption_for(self, key: str) -> float:
+        """Konsum-/Nachfragemenge aus dem Record (pro Monat)."""
+        return self.record_for_key(key).value
+
+    def vet_for(self, key: str) -> float:
+        """VET (Monats-Obergrenze) aus dem Record."""
+        return self.record_for_key(key).vet
+
+    def shadow_prices_map(self) -> dict[str, float]:
+        """Aktuelle Schattenpreise ``price`` dieses Intervalls."""
+        return {k: self.price_for(k) for k in BOUNDARY_KEYS}
+
+    @classmethod
+    def from_observation(
+        cls,
+        step_index: int,
+        zeitraum_days: float,
+        shadow_prices: dict[str, float],
+        consumption: dict[str, float],
+        vet: dict[str, float],
+        demand_at_reference_price: dict[str, float] | None = None,
+        reference_shadow_price: dict[str, float] | None = None,
+    ) -> ConsumptionInterval:
+        """Baut einen Abschnitt aus den Werten pro Grenze."""
+        recs: list[ConsumptionRecord] = []
+        for k in BOUNDARY_KEYS:
+            d_ref = demand_at_reference_price[k] if demand_at_reference_price else None
+            p_ref = reference_shadow_price[k] if reference_shadow_price else None
+            recs.append(
+                ConsumptionRecord(
+                    control_variable_key=k,
+                    unit=_canonical_unit_for_boundary(k),
+                    value=consumption[k],
+                    vet=vet[k],
+                    price=shadow_prices[k],
+                    demand_at_reference_price=d_ref,
+                    reference_shadow_price=p_ref,
+                )
+            )
+        return cls(
+            datum=step_index,
+            zeitraum_days=zeitraum_days,
+            records=recs,
+        )
+
+
+@dataclass
+class ConsumptionTimeline:
+    """Geordnete Intervalle mit ECU-Jahresvolumen und Preis-Konfiguration (fortlaufend über die Simulation)."""
+
+    ecu_per_year: float
+    """EcuJ pro Jahr (wie ``SimulationConfig.ecu_per_year``); in der Preislogik Ziel für Σ p·VEJ."""
+    price_config: PriceConfig
+    prices_for_next_consumption: dict[str, float] | None = None
+    """Von ``advance_shadow_prices`` gesetzt: Schattenpreise für den nächsten Konsum (leeres Timeline → Schätzstart)."""
+    _intervals: list[ConsumptionInterval] = field(default_factory=list, repr=False)
+
+    def append(self, interval: ConsumptionInterval) -> None:
+        self._intervals.append(interval)
+
+    def __len__(self) -> int:
+        return len(self._intervals)
+
+    def __getitem__(self, index: int) -> ConsumptionInterval:
+        return self._intervals[index]
+
+    def __iter__(self):
+        return iter(self._intervals)
+
+    @property
+    def last(self) -> ConsumptionInterval:
+        return self._intervals[-1]

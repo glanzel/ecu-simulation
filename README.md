@@ -9,12 +9,10 @@ Kleines Python-Modell zu einer ökologischen Währung (ECU) an drei planetaren K
 
 ## Projekt-Layout
 
-- Importpaket: **`ecu_simulation`** (Ordner dieses Repos).
-- Für `python -m ecu_simulation` muss das **Elternverzeichnis** dieses Ordners auf `PYTHONPATH` liegen (typisch: übergeordneter Ordner `texte/` mit `pytest.ini` und `tests/`).
+- Importpaket: **`ecu`** (Ordner `ecu/` im Repo-Root, Unterpakete höchstens eine Ebene darunter: `ecu/logic/`, `ecu/simulation/`, `ecu/ui/`).
+- Alle folgenden Befehle gelten **im Repo-Root** (der Ordner mit `pyproject.toml`).
 
 ## Abhängigkeiten mit uv
-
-Im Verzeichnis **`ecu_simulation/`** (dort liegt `pyproject.toml`):
 
 ```bash
 uv sync                    # nur Basis (aktuell keine Runtime-Deps)
@@ -27,18 +25,14 @@ uv sync --all-groups       # dev + web
 
 ## Simulation starten (CLI)
 
-Vom **Elternverzeichnis** des Pakets (z. B. `texte/`), sodass `ecu_simulation` importierbar ist:
-
 ```bash
-cd /pfad/zu/texte
-export PYTHONPATH=.
-uv run --project ecu_simulation python -m ecu_simulation --periods 5
+uv run python -m ecu --periods 5
 ```
 
-Kurzform mit einem Befehl:
+Mit Seed:
 
 ```bash
-PYTHONPATH=. uv run --project ecu_simulation python -m ecu_simulation --periods 5 --seed 1
+uv run python -m ecu --periods 5 --seed 1
 ```
 
 ## Optional: Web-Oberfläche
@@ -46,24 +40,20 @@ PYTHONPATH=. uv run --project ecu_simulation python -m ecu_simulation --periods 
 Nach `uv sync --group web`:
 
 ```bash
-cd /pfad/zu/texte
-export PYTHONPATH=.
-uv run --project ecu_simulation uvicorn ecu_simulation.ui.web.app:app --reload --reload-include '*.px'
+uv run uvicorn ecu.ui.web.app:app --reload --reload-include '*.px'
 ```
 
-**Darstellung:** [Tailwind CSS](https://tailwindcss.com/) mit [Tailwind Typography](https://github.com/tailwindlabs/tailwindcss-typography) liegt als gebaute Datei `ui/web/static/app.css` im Repo und wird unter `/static` ausgeliefert. Zum Neuaufbau nach Style-Änderungen: `npm run build:css` in `ui/web/`, siehe [ui/web/README.md](ui/web/README.md).
+**Darstellung:** [Tailwind CSS](https://tailwindcss.com/) mit [Tailwind Typography](https://github.com/tailwindlabs/tailwindcss-typography) liegt als gebaute Datei unter `ecu/ui/web/static/app.css` und wird unter `/static` ausgeliefert. Zum Neuaufbau nach Style-Änderungen: `npm run build:css` in `ecu/ui/web/`, siehe [ecu/ui/web/README.md](ecu/ui/web/README.md).
 
 ## Tests
 
-`uv sync --group dev`, dann vom Elternverzeichnis `texte/` (wegen `tests/` und `pytest.ini`):
+Nach `uv sync --group dev`:
 
 ```bash
-cd /pfad/zu/texte
-export PYTHONPATH=.
-uv run --project ecu_simulation pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
-Ausgaben der Tests: `uv run --project ecu_simulation pytest tests/ -s -v`
+Ausgaben der Tests: `uv run pytest tests/ -s -v`
 
 ## Lizenz
 
