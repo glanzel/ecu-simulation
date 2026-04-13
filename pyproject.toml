@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling>=1.18.0"]
+build-backend = "hatchling.build"
+
 [project]
 name = "ecu-simulation"
 version = "0.1.0"
@@ -17,9 +21,19 @@ web = [
 ]
 
 [tool.uv]
-# Kein Wheel-Build: das Paket `ecu_simulation` liegt flach im Repo-Root (Import mit PYTHONPATH auf das Elternverzeichnis).
-package = false
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["ecu"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/ecu",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+]
 
 [tool.pytest.ini_options]
-pythonpath = [".."]
-testpaths = ["../tests"]
+testpaths = ["tests"]
+pythonpath = ["."]
