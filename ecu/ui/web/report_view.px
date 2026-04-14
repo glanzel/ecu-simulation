@@ -1,169 +1,24 @@
 from pyjsx import JSX, jsx
 
+import ecu.ui.web.report_logic as RL
 from ecu.simulation.report_aggregates import BoundaryYearSummary, YearlyEcuSummary
+from ecu.ui.web.layout import site_head, site_header_bar
 from ecu.ui.web.view_model import BoundarySection, MonthRow, YearDetail
 
-# Feste Tailwind-``grid-cols-n``-Utilities (alle als Literale, damit der JIT-Build sie enthält).
-_GRID_COLS: tuple[str, ...] = (
-    "grid-cols-1",
-    "grid-cols-2",
-    "grid-cols-3",
-    "grid-cols-4",
-    "grid-cols-5",
-    "grid-cols-6",
-    "grid-cols-7",
-    "grid-cols-8",
-    "grid-cols-9",
-    "grid-cols-10",
-    "grid-cols-11",
-    "grid-cols-12",
-)
 
-# Gleich breite Spalten (übereinanderliegende Grids optisch untereinander ausrichten).
-_STYLE_COLS_5_EQ: str = "grid-template-columns: repeat(5, minmax(0, 1fr))"
-_STYLE_COLS_6_EQ: str = "grid-template-columns: repeat(6, minmax(0, 1fr))"
-_STYLE_COLS_7_EQ: str = "grid-template-columns: repeat(7, minmax(0, 1fr))"
-
-# Einheitliche Raster-Abstände für Laufparameter und alle Grenz-Blöcke (wie Referenz: schmale Gutter).
-_REPORT_GAP: str = "gap-1"
-
-
-def _head() -> JSX:
-    return (
-        <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <title>ECU — Auswertung</title>
-            <link rel="stylesheet" href="/static/app.css" />
-        </head>
-    )
-
-
-def _fmt_num(x: float, prec: int = 6) -> str:
-    if x != x:
-        return "n/a"
-    return f"{x:.{prec}g}"
-
-
-def _fmt_pct(x: float) -> str:
-    if x != x:
-        return "n/a"
-    return f"{x:.2f}"
-
-
-def _fmt_seed(s: int | None) -> str:
-    if s is None:
-        return "—"
-    return str(s)
-
-
-def _growth_one_line(growth_by_boundary: list[tuple[str, float]]) -> str:
-    """``v`` ist Jahresfaktor; Anzeige als Index (100 = Basis)."""
-    parts = []
-    for k, v in growth_by_boundary:
-        idx = v * 100.0
-        if idx == int(idx):
-            parts.append(f"{k} {int(idx)}")
-        else:
-            parts.append(f"{k} {_fmt_num(idx, prec=4)}")
-    return " · ".join(parts)
-
-
-def _d0_one_line(d0_by_boundary: list[tuple[str, float]]) -> str:
-    """``v`` ist Anteil 0…1; Anzeige als Prozent der VEJ."""
-    parts = []
-    for k, v in d0_by_boundary:
-        parts.append(f"{k} {_fmt_num(v * 100.0, prec=2)} %")
-    return " · ".join(parts)
-
-
-def _run_params_block(
-    ecu_per_year: float,
-    periods_years: int,
-    n_months: int,
-    budget_method: str,
-    growth_by_boundary: list[tuple[str, float]],
-    d0_by_boundary: list[tuple[str, float]],
-    demand_noise_std: float,
-    epsilon_noise_std: float,
-    seed: int | None,
-) -> JSX:
-    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und f₀ (VEJ-Anteil)."""
-    hdr = ["EcuJ", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
-    row1 = [
-        _fmt_num(ecu_per_year),
-        str(periods_years),
-        budget_method,
-        _fmt_num(demand_noise_std),
-        _fmt_num(epsilon_noise_std),
-        _fmt_seed(seed),
-    ]
-    gline = _growth_one_line(growth_by_boundary)
-    d0line = _d0_one_line(d0_by_boundary)
-    return (
-        <section class="not-prose mb-6">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Laufparameter</p>
-            <div class="border border-slate-200/80 bg-white shadow-sm">
-                {_grid(6, hdr, [row1], report_style=True, flush=False, extra_classes="my-0 border-0 shadow-none")}
-                <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
-                    <span class="font-medium text-slate-500">Wachstum (Index/Jahr, 100 = Basis)</span>
-                    {": "}
-                    {gline}
-                </div>
-                <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
-                    <span class="font-medium text-slate-500">f₀ (% VEJ)</span>
-                    {": "}
-                    {d0line}
-                </div>
-            </div>
-        </section>
-    )
-
-
-def _global_yearly_ecu_block(rows: list[YearlyEcuSummary]) -> JSX:
-    """Pro Jahr: Preis-/Kontenrahmen (Σ p·VEJ, Slack) und mittlere Auslastung — Werte wie in der CLI-Jahreszeile."""
-    if not rows:
-        return <span />
-    hdr = ["Jahr", "Σ p·VEJ", "Slack", "Ø Auslast."]
-    rrows: list[list[str]] = []
-    for y in rows:
-        rrows.append(
-            [
-                str(y.year_index),
-                _fmt_num(y.bundle_ecu),
-                _fmt_num(y.slack_vej),
-                _fmt_pct(y.mean_utilization),
-            ]
-        )
-    return (
-        <section class="not-prose mb-6">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                Jahresübersicht — ECU (alle Grenzen)
-            </p>
-            <div class="border border-slate-200/80 bg-white shadow-sm">
-                {_grid(4, hdr, rrows, report_style=True, flush=False, extra_classes="my-0 border-0 shadow-none")}
-                <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-500 leading-snug">
-                    Σ p·VEJ und Slack = ECU-Wert des planetaren Rahmens (letzter Monat); Slack = Σ p·VEJ − EcuJ
-                    (nach Preisnormierung ~0). Ø Auslast. = Mittel aus Konsum/VET je Grenze (kann {">"} 1) — Mengen an der
-                    Monatsgrenze VET, nicht dasselbe wie Slack.
-                </div>
-            </div>
-        </section>
-    )
-
-
-def _grid(
+def DataGrid(
     n_cols: int,
     headers: list[str],
     rows: list[list[str]],
-    *,
     row_header: bool = True,
     style: str | None = None,
     extra_classes: str = "",
     flush: bool = False,
     report_style: bool = False,
+    children: list | None = None,
 ) -> JSX:
-    """``report_style``: hellblauer Kopf, Zebra-Zeilen, einheitliche ``gap-1``."""
+    """Raster für Tabellen; ``report_style``: grüner Kopf, Zebra, ``gap-1``."""
+    _ = children
     if n_cols < 1 or n_cols > 12:
         raise ValueError(f"n_cols muss 1–12 sein, nicht {n_cols}")
     if len(headers) != n_cols:
@@ -211,12 +66,12 @@ def _grid(
     if flush:
         bg_outer = "bg-white" if report_style else "bg-transparent"
         base = (
-            f"not-prose grid {_REPORT_GAP} border-0 p-0 my-0 text-sm shadow-none w-full "
+            f"not-prose grid {RL.REPORT_GAP} border-0 p-0 my-0 text-sm shadow-none w-full "
             + bg_outer
         )
     elif report_style:
         base = (
-            f"not-prose grid {_REPORT_GAP} border-0 p-0 my-0 text-sm bg-white shadow-none "
+            f"not-prose grid {RL.REPORT_GAP} border-0 p-0 my-0 text-sm bg-white shadow-none "
             "rounded-none"
         )
     else:
@@ -229,13 +84,13 @@ def _grid(
     eff_style = style
     if eff_style is None and report_style:
         if n_cols == 7:
-            eff_style = _STYLE_COLS_7_EQ
+            eff_style = RL.STYLE_COLS_7_EQ
         elif n_cols == 6:
-            eff_style = _STYLE_COLS_6_EQ
+            eff_style = RL.STYLE_COLS_6_EQ
         elif n_cols == 5:
-            eff_style = _STYLE_COLS_5_EQ
+            eff_style = RL.STYLE_COLS_5_EQ
     if eff_style is None:
-        grid_classes = base + " " + _GRID_COLS[n_cols - 1]
+        grid_classes = base + " " + RL.GRID_COLS[n_cols - 1]
     else:
         grid_classes = base
     return (
@@ -245,37 +100,101 @@ def _grid(
     )
 
 
-def _month_grid(rows: list[MonthRow]) -> JSX:
-    hdr = ["Mon", "p", "consumption", "p·c", "N. p_ref", "VET", "c/VET %"]
-    rrows: list[list[str]] = []
-    for m in rows:
-        rrows.append(
-            [
-                str(m.period),
-                _fmt_num(m.price),
-                _fmt_num(m.consumption),
-                _fmt_num(m.pc),
-                _fmt_num(m.demand),
-                _fmt_num(m.vet),
-                _fmt_pct(m.pct_vet),
-            ]
-        )
-    return _grid(
-        7,
-        hdr,
-        rrows,
-        flush=True,
-        report_style=True,
-        extra_classes="border border-slate-200/60 rounded-none",
+def RunParamsBlock(
+    ecu_per_year: float,
+    periods_years: int,
+    n_months: int,
+    budget_method: str,
+    growth_by_boundary: list[tuple[str, float]],
+    d0_by_boundary: list[tuple[str, float]],
+    demand_noise_std: float,
+    epsilon_noise_std: float,
+    seed: int | None,
+    children: list | None = None,
+) -> JSX:
+    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und f₀ (VEJ-Anteil). ``n_months`` für API-Kompatibilität."""
+    _ = (children, n_months)
+    row1 = RL.run_params_row(
+        ecu_per_year, periods_years, budget_method, demand_noise_std, epsilon_noise_std, seed
+    )
+    gline = RL.growth_one_line(growth_by_boundary)
+    d0line = RL.d0_one_line(d0_by_boundary)
+    return (
+        <section class="not-prose mb-6">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Laufparameter</p>
+            <div class="border border-slate-200/80 bg-white shadow-sm">
+                <DataGrid
+                    n_cols={6}
+                    headers={RL.RUN_PARAMS_HDR}
+                    rows={[row1]}
+                    flush={False}
+                    report_style={True}
+                    extra_classes="my-0 border-0 shadow-none"
+                />
+                <div class="border-t border-slate-100 bg-white px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
+                    <span class="font-medium text-slate-500">Wachstum (Index/Jahr, 100 = Basis)</span>
+                    {": "}
+                    {gline}
+                </div>
+                <div class="border-t border-slate-100 bg-white px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
+                    <span class="font-medium text-slate-500">f₀ (% VEJ)</span>
+                    {": "}
+                    {d0line}
+                </div>
+            </div>
+        </section>
     )
 
 
-_YEAR_HDR = ["Jahr", "Ø p", "Σ consumption", "Σ N. p_ref", "Σ p·c", "VEJ", "Σc/VEJ %"]
+def GlobalYearlyEcuBlock(rows: list[YearlyEcuSummary], children: list | None = None) -> JSX:
+    """Pro Jahr: Preis-/Kontenrahmen (Σ p·VEJ, Slack) und mittlere Auslastung."""
+    _ = children
+    rrows = RL.yearly_ecu_table_rows(rows)
+    if rrows is None:
+        return <span />
+    return (
+        <section class="not-prose mb-6">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                Jahresübersicht — ECU (alle Grenzen)
+            </p>
+            <div class="border border-slate-200/80 bg-white shadow-sm">
+                <DataGrid
+                    n_cols={4}
+                    headers={RL.YEARLY_ECU_HDR}
+                    rows={rrows}
+                    flush={False}
+                    report_style={True}
+                    extra_classes="my-0 border-0 shadow-none"
+                />
+                <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-500 leading-snug">
+                    Σ p·VEJ und Slack = ECU-Wert des planetaren Rahmens (letzter Monat); Slack = Σ p·VEJ − EcuJ
+                    (nach Preisnormierung ~0). Ø Auslast. = Mittel aus Konsum/VET je Grenze (kann {">"} 1) — Mengen an der
+                    Monatsgrenze VET, nicht dasselbe wie Slack.
+                </div>
+            </div>
+        </section>
+    )
 
 
-def _year_header_row() -> JSX:
+def MonthGrid(rows: list[MonthRow], children: list | None = None) -> JSX:
+    _ = children
+    rrows = RL.month_table_rows(rows)
+    return (
+        <DataGrid
+            n_cols={7}
+            headers={RL.MONTH_HDR}
+            rows={rrows}
+            flush={True}
+            report_style={True}
+            extra_classes="border border-slate-200/60 rounded-none"
+        />
+    )
+
+
+def YearHeaderRow(children: list | None = None) -> JSX:
+    _ = children
     cells: list = []
-    for h in _YEAR_HDR:
+    for h in RL.YEAR_HDR:
         cells.append(
             <div
                 class={
@@ -289,7 +208,7 @@ def _year_header_row() -> JSX:
         )
     return (
         <div
-            class={"grid w-full " + _REPORT_GAP + " bg-white"}
+            class={"grid w-full " + RL.REPORT_GAP + " bg-white"}
             role="row"
             style={"grid-template-columns: repeat(7, minmax(0, 1fr))"}
         >
@@ -298,20 +217,12 @@ def _year_header_row() -> JSX:
     )
 
 
-def _year_data_cells(ys: BoundaryYearSummary) -> list:
-    vals = [
-        str(ys.year_index),
-        _fmt_num(ys.mean_price),
-        _fmt_num(ys.sum_consumption),
-        _fmt_num(ys.sum_demand_ref),
-        _fmt_num(ys.sum_pc),
-        _fmt_num(ys.vej),
-        _fmt_pct(ys.pct_sumc_vej),
-    ]
-    cells: list = []
+def YearSummaryCells(summary: BoundaryYearSummary) -> list:
+    vals = RL.year_summary_values(summary)
+    out: list = []
     for i, v in enumerate(vals):
         align = "text-left" if i == 0 else "text-center"
-        cells.append(
+        out.append(
             <div
                 class={
                     "min-w-0 truncate px-1.5 py-1 text-[11px] text-slate-800 tabular-nums " + align
@@ -320,56 +231,48 @@ def _year_data_cells(ys: BoundaryYearSummary) -> list:
                 {v}
             </div>
         )
-    return cells
+    return out
 
 
-def _year_block(yd: YearDetail) -> JSX:
-    ys = yd.summary
+def YearBlock(yd: YearDetail, children: list | None = None) -> JSX:
+    _ = children
     return (
         <details class="not-prose border-b border-slate-100 bg-white last:border-b-0">
             <summary
                 class={
-                    "cursor-pointer list-none grid w-full " + _REPORT_GAP + " text-[11px] "
+                    "cursor-pointer list-none grid w-full " + RL.REPORT_GAP + " text-[11px] "
                     "font-medium text-slate-800 items-stretch bg-white hover:bg-report-zebra "
                     "[&::-webkit-details-marker]:hidden"
                 }
                 style={"grid-template-columns: repeat(7, minmax(0, 1fr))"}
             >
-                {_year_data_cells(ys)}
+                {YearSummaryCells(yd.summary)}
             </summary>
-            <div class="border-t border-slate-100 bg-white px-0 py-1">{_month_grid(yd.months)}</div>
+            <div class="border-t border-slate-100 bg-white px-0 py-1">
+                <MonthGrid rows={yd.months} />
+            </div>
         </details>
     )
 
 
-def _boundary_block(sec: BoundarySection) -> JSX:
-    t = sec.total
-    th = ["Grenze", "Σ consumption", "Σ N. p_ref", "Σ p·c", "VEJ", "Σc/VEJ %"]
-    tr = [
-        [
-            f"{sec.label} ({sec.key})",
-            _fmt_num(t.sum_consumption),
-            _fmt_num(t.sum_demand_ref),
-            _fmt_num(t.sum_pc),
-            _fmt_num(t.vej),
-            _fmt_pct(t.pct_sumc_vej),
-        ]
-    ]
+def BoundaryBlock(section: BoundarySection, children: list | None = None) -> JSX:
+    _ = children
+    tr = [RL.boundary_summary_row(section)]
     return (
         <details class="not-prose border border-slate-200/80 bg-white shadow-sm">
             <summary class="cursor-pointer list-none block w-full [&::-webkit-details-marker]:hidden">
-                {_grid(
-                    6,
-                    th,
-                    tr,
-                    flush=True,
-                    report_style=True,
-                )}
+                <DataGrid
+                    n_cols={6}
+                    headers={RL.BOUNDARY_SUMMARY_HDR}
+                    rows={tr}
+                    flush={True}
+                    report_style={True}
+                />
             </summary>
-            <div class="border-t border-slate-100 bg-report-zebra/50 py-1.5 px-0">
+            <div class="border-t border-slate-100 bg-white py-1.5 px-0">
                 <div class="border border-slate-200/60 bg-white w-full rounded-none">
-                    {_year_header_row()}
-                    {[_year_block(yd) for yd in sec.years]}
+                    <YearHeaderRow />
+                    {[<YearBlock yd={yd} /> for yd in section.years]}
                 </div>
             </div>
         </details>
@@ -388,24 +291,27 @@ def report_page(
     demand_noise_std: float,
     epsilon_noise_std: float,
     seed: int | None,
+    children: list | None = None,
 ) -> JSX:
+    _ = children
     return (
         <html lang="de">
-            {_head()}
-            <body class="min-h-screen bg-slate-100/90 text-slate-900 antialiased">
+            {site_head("ECU — Auswertung")}
+            <body class="min-h-screen bg-white text-slate-900 antialiased">
+                {site_header_bar()}
                 <main class="max-w-5xl mx-auto px-4 py-5">
-                    {_run_params_block(
-                        ecu_per_year,
-                        periods_years,
-                        n_months,
-                        budget_method,
-                        growth_by_boundary,
-                        d0_by_boundary,
-                        demand_noise_std,
-                        epsilon_noise_std,
-                        seed,
-                    )}
-                    {_global_yearly_ecu_block(yearly_ecu)}
+                    <RunParamsBlock
+                        ecu_per_year={ecu_per_year}
+                        periods_years={periods_years}
+                        n_months={n_months}
+                        budget_method={budget_method}
+                        growth_by_boundary={growth_by_boundary}
+                        d0_by_boundary={d0_by_boundary}
+                        demand_noise_std={demand_noise_std}
+                        epsilon_noise_std={epsilon_noise_std}
+                        seed={seed}
+                    />
+                    <GlobalYearlyEcuBlock rows={yearly_ecu} />
                     <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1 not-prose">
                         Grenzen
                     </p>
@@ -414,9 +320,21 @@ def report_page(
                         consumption / Monat.
                     </p>
                     <div class="not-prose flex flex-col gap-3">
-                        {[_boundary_block(sec) for sec in sections]}
+                        {[<BoundaryBlock section={sec} /> for sec in sections]}
                     </div>
                 </main>
             </body>
         </html>
     )
+
+
+__all__ = [
+    "BoundaryBlock",
+    "DataGrid",
+    "GlobalYearlyEcuBlock",
+    "MonthGrid",
+    "RunParamsBlock",
+    "YearBlock",
+    "YearHeaderRow",
+    "report_page",
+]

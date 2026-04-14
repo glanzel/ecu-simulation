@@ -1,0 +1,25 @@
+from pyjsx import JSX, jsx
+
+
+def site_head(title: str) -> JSX:
+    return (
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>{title}</title>
+            <link rel="stylesheet" href="/static/app.css" />
+        </head>
+    )
+
+
+def site_header_bar() -> JSX:
+    return (
+        <header class="ecu-header-decor bg-brand-header text-white shadow-sm">
+            <div class="relative z-10 max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+                <a href="/" class="flex items-center gap-3 min-w-0 no-underline hover:opacity-95">
+                    <img src="/static/logo3.svg" alt="" class="h-9 w-auto shrink-0 logo-header-white" width="40" height="55" />
+                    <span class="text-lg font-semibold tracking-tight text-white font-sans truncate">Ecological Unit</span>
+                </a>
+            </div>
+        </header>
+    )

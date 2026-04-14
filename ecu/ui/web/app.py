@@ -64,7 +64,7 @@ def index() -> HTMLResponse:
 
 
 @app.get("/report", response_class=HTMLResponse)
-def report(
+def report(  # HTML: ``ecu.ui.web.report.report_page``
     ecu: float | None = Query(None),
     periods: int = Query(5, ge=1, le=500),
     growth: str | None = Query(None),
