@@ -1,31 +1,19 @@
 from pyjsx import JSX, jsx
 
-
-def _head(title: str) -> JSX:
-    return (
-        <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <title>{title}</title>
-            <link rel="stylesheet" href="/static/app.css" />
-        </head>
-    )
+from ecu.ui.web.layout import site_head, site_header_bar
 
 
 def home_page(title: str, intro: str, example_links: list[tuple[str, str]]) -> JSX:
     return (
         <html lang="de">
-            {_head(title)}
-            <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
-                <header class="bg-slate-800 text-white shadow-md">
-                    <div class="max-w-5xl mx-auto px-4 py-6">
-                        <h1 class="text-2xl font-semibold tracking-tight not-prose">{title}</h1>
-                        <p class="text-slate-300 text-sm mt-2 not-prose">
-                            Ökologische Währung (ECU) — Simulation
-                        </p>
-                    </div>
-                </header>
+            {site_head(title)}
+            <body class="min-h-screen bg-white text-slate-900 antialiased">
+                {site_header_bar()}
                 <main class="prose prose-slate prose-lg max-w-5xl mx-auto px-4 py-10">
+                    <h1 class="not-prose text-2xl font-semibold tracking-tight text-slate-900 mt-0">{title}</h1>
+                    <p class="text-slate-600 text-base not-prose -mt-2 mb-6">
+                        Ökologische Währung (ECU) — Simulation
+                    </p>
                     <p>{intro}</p>
                     <h2>Beispiele</h2>
                     <ul>

@@ -1,3 +1,39 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* logo3.svg: Form beibehalten, Fläche einheitlich weiß (Header) */
+.logo-header-white {
+  filter: brightness(0) invert(1);
+}
+
+/* Angeschnittene Kreise im Header: nur ein Teil sichtbar (overflow hidden am Eltern-Header) */
+.ecu-header-decor {
+  position: relative;
+  overflow: hidden;
+}
+.ecu-header-decor::before,
+.ecu-header-decor::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+/* links hinter dem Logo: etwas dunkler */
+.ecu-header-decor::before {
+  width: clamp(80px, 18vw, 120px);
+  height: clamp(80px, 18vw, 120px);
+  left: clamp(-1.5rem, -3.5vw, -0.75rem);
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.14);
+}
+/* rechts oben: helleres Segment */
+.ecu-header-decor::after {
+  width: clamp(92px, 20vw, 140px);
+  height: clamp(92px, 20vw, 140px);
+  right: clamp(-1.75rem, -4vw, -0.75rem);
+  top: clamp(-1.5rem, -5vw, -0.75rem);
+  background: rgba(255, 255, 255, 0.07);
+}

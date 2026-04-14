@@ -1,14 +1,33 @@
 """
-Report-HTML: Implementierung in ``report_view.px`` (PyJSX); dieses Modul ist die
-stabile Import-Adresse ``ecu.ui.web.report`` (echte ``.py``-Datei, damit
-Uvicorn ``--reload`` und der Import-Cache nicht mit einer veralteten ``report_page``-
-Signatur hängen bleiben).
+Stabile Import-Adresse ``ecu.ui.web.report``; JSX-View in ``report_view``.
+
+``import pyjsx.auto_setup`` vor dem ersten Import dieses Moduls (z. B. in ``app.py``).
+
+Die Report-Route in FastAPI: ``ecu.ui.web.app:report`` — ``@app.get("/report", ...)``.
 """
 
 from __future__ import annotations
 
-import pyjsx.auto_setup  # noqa: F401 — vor Import aus ``.px``
+import pyjsx.auto_setup  # noqa: F401 — .px-Imports + Codec
 
-from ecu.ui.web.report_view import report_page
+from ecu.ui.web.report_view import (
+    BoundaryBlock,
+    DataGrid,
+    GlobalYearlyEcuBlock,
+    MonthGrid,
+    RunParamsBlock,
+    YearBlock,
+    YearHeaderRow,
+    report_page,
+)
 
-__all__ = ["report_page"]
+__all__ = [
+    "BoundaryBlock",
+    "DataGrid",
+    "GlobalYearlyEcuBlock",
+    "MonthGrid",
+    "RunParamsBlock",
+    "YearBlock",
+    "YearHeaderRow",
+    "report_page",
+]
