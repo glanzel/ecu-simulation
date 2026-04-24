@@ -17,6 +17,7 @@ from ecu.simulation.config import default_config
 from ecu.simulation.report_aggregates import yearly_ecu_summaries
 from ecu.simulation.run_params import RunParams
 from ecu.simulation.simulation import run_simulation
+from ecu.ui.web.chart_payload import chart_data_json_for_report
 from ecu.ui.web.home import home_page
 from ecu.ui.web.report import report_page
 from ecu.ui.web.view_model import build_boundary_sections
@@ -119,6 +120,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
         demand_noise_std=cfg.demand_at_reference_price_log_noise_std,
         epsilon_noise_std=cfg.epsilon_log_noise_std,
         seed=cfg.random_seed,
+        chart_data_json=chart_data_json_for_report(results),
     )
     return HTMLResponse(
         str(page),

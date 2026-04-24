@@ -12,6 +12,7 @@ import pyjsx.auto_setup  # noqa: F401 — .px-Imports + Codec
 
 from ecu.ui.web.report_view import (
     BoundaryBlock,
+    ChartsSection,
     DataGrid,
     GlobalYearlyEcuBlock,
     MonthGrid,
@@ -23,6 +24,7 @@ from ecu.ui.web.report_view import (
 
 __all__ = [
     "BoundaryBlock",
+    "ChartsSection",
     "DataGrid",
     "GlobalYearlyEcuBlock",
     "MonthGrid",
