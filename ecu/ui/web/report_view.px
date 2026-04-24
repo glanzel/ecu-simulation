@@ -1,4 +1,5 @@
 from pyjsx import JSX, jsx
+from pyjsx.jsx import HTMLDontEscape
 
 import ecu.ui.web.report_logic as RL
 from ecu.simulation.report_aggregates import BoundaryYearSummary, YearlyEcuSummary
@@ -106,19 +107,19 @@ def RunParamsBlock(
     n_months: int,
     budget_method: str,
     growth_by_boundary: list[tuple[str, float]],
-    d0_by_boundary: list[tuple[str, float]],
+    start_demand_by_boundary: list[tuple[str, float]],
     demand_noise_std: float,
     epsilon_noise_std: float,
     seed: int | None,
     children: list | None = None,
 ) -> JSX:
-    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und f₀ (VEJ-Anteil). ``n_months`` für API-Kompatibilität."""
+    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und Start-Nachfrage (VEJ-Anteil). ``n_months`` für API-Kompatibilität."""
     _ = (children, n_months)
     row1 = RL.run_params_row(
         ecu_per_year, periods_years, budget_method, demand_noise_std, epsilon_noise_std, seed
     )
     gline = RL.growth_one_line(growth_by_boundary)
-    d0line = RL.d0_one_line(d0_by_boundary)
+    sdline = RL.start_demand_one_line(start_demand_by_boundary)
     return (
         <section class="not-prose mb-6">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Laufparameter</p>
@@ -137,9 +138,9 @@ def RunParamsBlock(
                     {gline}
                 </div>
                 <div class="border-t border-slate-100 bg-white px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
-                    <span class="font-medium text-slate-500">f₀ (% VEJ)</span>
+                    <span class="font-medium text-slate-500">Start-Nachfrage (% VEJ)</span>
                     {": "}
-                    {d0line}
+                    {sdline}
                 </div>
             </div>
         </section>
@@ -255,6 +256,52 @@ def YearBlock(yd: YearDetail, children: list | None = None) -> JSX:
     )
 
 
+def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
+    _ = children
+    return (
+        <section class="not-prose mb-6">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Diagramme</p>
+            <div class="flex flex-col gap-8 border border-slate-200/80 bg-white shadow-sm p-4">
+                <div>
+                    <p class="text-xs font-medium text-slate-700 mb-2">Gesamtauslastung (Mittel Konsum / VET)</p>
+                    <div class="relative h-64 w-full min-h-[200px]">
+                        <canvas id="chart-mean-utilization"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-xs font-medium text-slate-700 mb-2">
+                        Gesamter Kontenrahmen (ECU/Monat): Σ p·VEJ und Σ p·Konsum
+                    </p>
+                    <div class="relative h-64 w-full min-h-[200px]">
+                        <canvas id="chart-ecu-totals"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-xs font-medium text-slate-700 mb-2">Auslastung pro Grenze (Konsum / VET, %)</p>
+                    <div class="relative h-72 w-full min-h-[220px]">
+                        <canvas id="chart-pct-vet-by-boundary"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-xs font-medium text-slate-700 mb-2">Schattenpreis pro Grenze (ECU / Einheit)</p>
+                    <div class="relative h-72 w-full min-h-[220px]">
+                        <canvas id="chart-price-by-boundary"></canvas>
+                    </div>
+                </div>
+            </div>
+            <script type="application/json" id="ecu-report-chart-data">
+                {HTMLDontEscape(chart_data_json)}
+            </script>
+            <script
+                defer={True}
+                src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"
+                crossorigin="anonymous"
+            ></script>
+            <script defer={True} src="/static/report-charts.js"></script>
+        </section>
+    )
+
+
 def BoundaryBlock(section: BoundarySection, children: list | None = None) -> JSX:
     _ = children
     tr = [RL.boundary_summary_row(section)]
@@ -287,10 +334,11 @@ def report_page(
     n_months: int,
     budget_method: str,
     growth_by_boundary: list[tuple[str, float]],
-    d0_by_boundary: list[tuple[str, float]],
+    start_demand_by_boundary: list[tuple[str, float]],
     demand_noise_std: float,
     epsilon_noise_std: float,
     seed: int | None,
+    chart_data_json: str,
     children: list | None = None,
 ) -> JSX:
     _ = children
@@ -306,11 +354,12 @@ def report_page(
                         n_months={n_months}
                         budget_method={budget_method}
                         growth_by_boundary={growth_by_boundary}
-                        d0_by_boundary={d0_by_boundary}
+                        start_demand_by_boundary={start_demand_by_boundary}
                         demand_noise_std={demand_noise_std}
                         epsilon_noise_std={epsilon_noise_std}
                         seed={seed}
                     />
+                    <ChartsSection chart_data_json={chart_data_json} />
                     <GlobalYearlyEcuBlock rows={yearly_ecu} />
                     <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1 not-prose">
                         Grenzen
@@ -330,6 +379,7 @@ def report_page(
 
 __all__ = [
     "BoundaryBlock",
+    "ChartsSection",
     "DataGrid",
     "GlobalYearlyEcuBlock",
     "MonthGrid",

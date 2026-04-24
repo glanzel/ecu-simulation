@@ -23,10 +23,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="ECU-Terminalsimulation",
         epilog=(
-            f"Listen (--growth, --d0-fraction): drei Werte in Reihenfolge {_GROWTH_ORDER}; "
+            f"Listen (--growth, --start-demand): je {len(BOUNDARY_KEYS)} Werte in Reihenfolge {_GROWTH_ORDER}; "
             "Trenner: | (in URLs ohne %2C), ; oder Komma. "
             "Wachstum: Index 100 = Basis, 110 = +10 Prozent pro Jahr, 90 = −10 Prozent pro Jahr; "
-            "f₀: Anteil der VEJ in Prozent (Standard 45 ohne Option)."
+            "ohne --growth: Jahresfaktoren aus planetary_constants (literaturbasierte Defaults). "
+            "start-demand: Anteil der VEJ in Prozent; ohne Option: Defaults je Grenze."
         ),
     )
     p.add_argument("--ecu", type=float, default=None, help="EcuJ pro Jahr (Ziel Σ p·VEJ)")
@@ -45,21 +46,22 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         metavar="LISTE",
         help=(
-            f"Nachfrage-Index pro Jahr ({_GROWTH_ORDER}); Jahresfaktor = Index/100, pro Zeitschritt (Index/100)^(1/steps_per_year) "
-            f"(steps_per_year={MONTHS_PER_YEAR} Monate/Jahr), "
-            "z. B. 102|100|100 (+2 %% auf co2 über ein Jahr). 100 = unverändert, 110 = +10 %%, 90 = −10 %%. "
-            "Ohne diese Option: Faktor 1 (wie Index 100)."
+            f"Nachfrage-Index pro Jahr ({_GROWTH_ORDER}); je {len(BOUNDARY_KEYS)} Werte; "
+            f"Jahresfaktor = Index/100, pro Zeitschritt (Index/100)^(1/steps_per_year) "
+            f"(steps_per_year={MONTHS_PER_YEAR} Monate/Jahr). "
+            "100 = unverändert, 110 = +10 %%, 90 = −10 %%. "
+            "Ohne diese Option: ``growth`` aus planetary_constants je Grenze."
         ),
     )
     p.add_argument(
-        "--d0-fraction",
+        "--start-demand",
         type=str,
         default=None,
-        dest="d0_fraction",
+        dest="start_demand",
         metavar="LISTE",
         help=(
-            f"Start-Anteil f_i als Prozent der VEJ bei Referenzpreis ({_GROWTH_ORDER}); "
-            "z. B. 42|45|48. Ohne diese Option: 45 %% je Grenze (Konfiguration)."
+            f"Start-Nachfrage als Prozent der VEJ bei Referenzpreis ({_GROWTH_ORDER}); "
+            f"z. B. neun Werte. Ohne diese Option: ``start_demand`` aus planetary_constants je Grenze."
         ),
     )
     p.add_argument(
@@ -70,8 +72,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="demand_noise_std",
         metavar="σ",
         help=(
-            "Std.-Abw. im Log-Raum: demand_at_reference_price *= exp(N(0,σ²)) pro Grenze und Periode "
-            "(nach Wachstum, je Monat). 0 = kein Rauschen. Standard aus Konfiguration (typ. 0,3), wenn nicht gesetzt."
+            "Std.-Abw. σ im Log-Raum: demand_at_reference_price *= exp(Z), Z~N(0,σ), pro Grenze und Monat "
+            "(nach Wachstum). 0 = kein Rauschen. Standard aus Konfiguration (ln(1,01) ≈ 1 %-Skala bei ±1σ), wenn nicht gesetzt."
         ),
     )
     p.add_argument(
@@ -82,8 +84,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="epsilon_noise_std",
         metavar="σ",
         help=(
-            "Std.-Abw. im Log-Raum: ε_i *= exp(N(0,σ²)) pro Grenze und Monat (Basis aus Konfiguration). "
-            "0 = keine Schwankung. Standard 0."
+            "Std.-Abw. σ im Log-Raum: ε_i *= exp(Z), Z~N(0,σ), pro Grenze und Monat (Basis aus Konfiguration). "
+            "0 = keine Schwankung. Standard wie Nachfrage-Rauschen (ln(1,01)), wenn nicht gesetzt."
         ),
     )
     p.add_argument(
@@ -122,13 +124,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def _boundary_vet_d_unit(b: BoundaryConstants) -> str:
     """Kurz-Hinweis zu Einheiten von VET und consumption in der Legende (monatlich)."""
-    if b.key == "co2":
-        return "Mt CO₂ Monat⁻¹ (VET und consumption pro Monat)"
-    if b.key == "hanpp":
-        return "Anteil (0–1), VET und consumption dimensionslos (Monatsfluss)"
-    if b.key == "nitrogen":
-        return "kt N Monat⁻¹"
-    return ""
+    return f"{b.consumption_unit_monthly} (VET und consumption pro Monat)"
 
 
 def print_boundary_tables(results: list[PeriodResult]) -> None:
@@ -309,13 +305,8 @@ def print_yearly_boundary_tables(results: list[PeriodResult]) -> None:
 
 def _boundary_vej_d_unit(b: BoundaryConstants) -> str:
     """Jahresübersicht: VEJ und Summe der Monatskonsume (jährliche Einheiten)."""
-    if b.key == "co2":
-        return "Mt CO₂ a⁻¹ (Σconsumption = Jahresmenge; VEJ = Jahresgrenze)"
-    if b.key == "hanpp":
-        return "Anteil (0–1), VEJ und Σ consumption dimensionslos (Jahresfluss)"
-    if b.key == "nitrogen":
-        return "kt N a⁻¹"
-    return ""
+    u = b.consumption_unit_monthly.replace("Monat⁻¹", "a⁻¹")
+    return f"{u} (Σconsumption = Jahresmenge; VEJ = Jahresgrenze)"
 
 
 def _pct_change(new: float, old: float) -> float:
@@ -369,7 +360,7 @@ def print_monthly_price_sums(results: list[PeriodResult]) -> None:
         prev_pc = pc
     print(
         "Legende: Σ p·c = Σ_i p_i·consumption_i (monatlich verbuchte ECU). "
-        "Σ p = Summe der drei Schattenpreise. Δ = Änderung von Σ p·c zum Vormonat (%). "
+        "Σ p = Summe der Schattenpreise über alle Grenzen. Δ = Änderung von Σ p·c zum Vormonat (%). "
         "Ø Auslast. = Mittel aus consumption/VET je Grenze (kann > 1)."
     )
 
