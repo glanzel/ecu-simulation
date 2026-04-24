@@ -18,7 +18,7 @@ from ecu.logic.observations import (
     ConsumptionInterval,
     ConsumptionTimeline,
 )
-from ecu.logic.planetary_constants import ALL_BOUNDARIES
+from ecu.logic.planetary_constants import ALL_BOUNDARIES, default_growth_by_key
 from ecu.logic.prices import (
     advance_shadow_prices,
     bundle_value,
@@ -50,7 +50,7 @@ class PeriodResult:
     ecu_per_year: float
     """Verteiltes ECU-Jahresvolumen (EcuJ), wie ``SimulationConfig.ecu_per_year``; in der Preislogik Ziel Σ p·VEJ."""
     mean_utilization: float
-    """Mittel aus consumption/VET über die drei Grenzen (kann > 1 sein, z. B. Grenzüberschreitung)."""
+    """Mittel aus consumption/VET über alle Grenzen (kann > 1 sein, z. B. Grenzüberschreitung)."""
     ecu_per_unit: dict[str, float]
     unit_per_ecu: dict[str, float]
     demand_at_reference_price: dict[str, float]
@@ -165,9 +165,13 @@ def run_simulation(
     vej = build_vej_bundle()
     vet = vet_from_vej(vej)
     base_epsilon = cfg.resolved_epsilon()
-    frac = cfg.resolved_d0_fraction()
+    frac = cfg.resolved_start_demand()
     demand_at_reference_price = {k: frac[k] * vet[k] for k in BOUNDARY_KEYS}
-    annual = demand_growth_per_year or {k: 1.0 for k in BOUNDARY_KEYS}
+    annual = (
+        demand_growth_per_year
+        if demand_growth_per_year is not None
+        else default_growth_by_key()
+    )
     inv = float(steps_per_year)
     growth_per_period = {k: annual[k] ** (1.0 / inv) for k in BOUNDARY_KEYS}
 

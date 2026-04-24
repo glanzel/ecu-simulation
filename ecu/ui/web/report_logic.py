@@ -66,9 +66,9 @@ def growth_one_line(growth_by_boundary: list[tuple[str, float]]) -> str:
     return " · ".join(parts)
 
 
-def d0_one_line(d0_by_boundary: list[tuple[str, float]]) -> str:
+def start_demand_one_line(start_demand_by_boundary: list[tuple[str, float]]) -> str:
     """``v`` ist Anteil 0…1; Anzeige als Prozent der VEJ."""
-    parts = [f"{k} {fmt_num(v * 100.0, prec=2)} %" for k, v in d0_by_boundary]
+    parts = [f"{k} {fmt_num(v * 100.0, prec=2)} %" for k, v in start_demand_by_boundary]
     return " · ".join(parts)
 
 

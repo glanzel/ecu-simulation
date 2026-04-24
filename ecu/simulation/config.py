@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Mapping
 
 from ecu.logic.observations import BOUNDARY_KEYS
+from ecu.logic.planetary_constants import default_start_demand_by_key
 from ecu.logic.price_config import PriceConfig
 from ecu.simulation.consumption_budget import ConsumptionBudgetMethod
+
+# Log-Raum-σ: typischer Monatsfaktor exp(±σ) ≈ ±1 % bei ±1σ (exp(ln 1,01) = 1,01).
+_DEFAULT_LOG_NOISE_STD_FOR_CA_ONE_PERCENT: float = math.log(1.01)
 
 
 @dataclass
@@ -21,13 +26,14 @@ class SimulationConfig:
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
-    # Anteil f_i der VEJ: D_i(p_ref) = f_i·VET_i (Referenznachfrage; „d0“ = Startanker der Kurve).
+    # Anteil f_i der VEJ: D_i(p_ref) = f_i·VET_i (Referenznachfrage; Startanker der Kurve).
     # Start-Schattenpreise werden so normiert, dass Σ p·(f·VET) = EcuJ/12 (Referenzkonsum am Budget).
-    d0_fraction_of_vej: Mapping[str, float] = field(default_factory=dict)
-    # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(N(0, σ²)); σ im Log-Raum, typ. ~0,3
-    demand_at_reference_price_log_noise_std: float = 0.3
-    # Optional: pro Periode ε_i *= exp(N(0, σ²)) auf Basis von ``resolved_epsilon``; 0 = keine Schwankung
-    epsilon_log_noise_std: float = 0.0
+    # Fehlende Schlüssel: ``BoundaryConstants.start_demand_percent`` / 100 je Grenze in ``ALL_BOUNDARIES``.
+    start_demand_of_vej: Mapping[str, float] = field(default_factory=dict)
+    # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(Z), Z ~ N(0, σ); σ wie Modulkonstante.
+    demand_at_reference_price_log_noise_std: float = _DEFAULT_LOG_NOISE_STD_FOR_CA_ONE_PERCENT
+    # Pro Periode: ε_i *= exp(Z), Z ~ N(0, σ); gleiche σ-Wahl wie Nachfrage-Rauschen.
+    epsilon_log_noise_std: float = _DEFAULT_LOG_NOISE_STD_FOR_CA_ONE_PERCENT
     # Optional: RNG-Seed für reproduzierbare Läufe (None = nicht setzen)
     random_seed: int | None = None
     # Kybernetik der Schattenpreise (Schattenpreisfindung aus Timeline)
@@ -47,9 +53,9 @@ class SimulationConfig:
         default_eps = -0.4
         return {k: float(self.epsilon.get(k, default_eps)) for k in BOUNDARY_KEYS}
 
-    def resolved_d0_fraction(self) -> dict[str, float]:
-        default_f = 0.45
-        return {k: float(self.d0_fraction_of_vej.get(k, default_f)) for k in BOUNDARY_KEYS}
+    def resolved_start_demand(self) -> dict[str, float]:
+        defaults = default_start_demand_by_key()
+        return {k: float(self.start_demand_of_vej.get(k, defaults[k])) for k in BOUNDARY_KEYS}
 
 
 def default_config() -> SimulationConfig:

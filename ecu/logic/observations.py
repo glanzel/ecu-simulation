@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from ecu.logic.planetary_constants import ALL_BOUNDARIES
 from ecu.logic.price_config import PriceConfig
 
-# Reihenfolge der Grenzen (Schlüssel) — zentral hier, damit keine Zirkelimporte mit ``config`` nötig sind
-BOUNDARY_KEYS: tuple[str, ...] = ("co2", "hanpp", "nitrogen")
+# Reihenfolge = ``ALL_BOUNDARIES`` (keine feste Literal-Liste; beliebig erweiterbar).
+BOUNDARY_KEYS: tuple[str, ...] = tuple(b.key for b in ALL_BOUNDARIES)
 
 # Kalender: glatt 365 Tage pro Jahr, kein Schaltjahr
 DAYS_PER_YEAR: float = 365.0
@@ -26,13 +26,7 @@ DAYS_PER_MONTH: float = DAYS_PER_YEAR / float(MONTHS_PER_YEAR)
 def _canonical_unit_for_boundary(key: str) -> str:
     for b in ALL_BOUNDARIES:
         if b.key == key:
-            if key == "co2":
-                return "Mt CO₂ Monat⁻¹"
-            if key == "hanpp":
-                return "Anteil (0–1), Monatsfluss wie VET"
-            if key == "nitrogen":
-                return "kt N Monat⁻¹"
-            return b.unit_note[:40]
+            return b.consumption_unit_monthly
     return ""
 
 
