@@ -26,21 +26,24 @@ app = FastAPI(title="ECU Simulation", docs_url=None, redoc_url=None)
 _static_dir = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
+# Beispiel-Listen (Reihenfolge = ``BOUNDARY_KEYS``): ein Eintrag pro planetarer Grenze.
+_EX_G_CO2_102 = "102|" + "|".join(["100"] * 8)
+_EX_START_DEMAND = "40|45|50|45|45|45|45|45|45"
+_EX_G_MIX = "101|100|100.5|" + "|".join(["100"] * 6)
+
 
 def _example_links() -> list[tuple[str, str]]:
     examples: list[tuple[str, RunParams]] = [
         ("1 Jahr, Seed 1", RunParams.from_web_query(periods=1, seed=1)),
         ("5 Jahre, Standard", RunParams.from_web_query(periods=5)),
-        ("2 Jahre, CO₂ Index 102", RunParams.from_web_query(periods=2, growth="102|100|100", seed=42)),
+        ("2 Jahre, CO₂ Index 102", RunParams.from_web_query(periods=2, growth=_EX_G_CO2_102, seed=42)),
         (
             "Alle Parameter (Beispiel)",
             RunParams.from_web_query(
                 ecu=95_000.0,
                 periods=3,
-                growth="101|100|100.5",
-                d0_fraction="40|45|50",
-                demand_noise_std=0.25,
-                epsilon_noise_std=0.0,
+                growth=_EX_G_MIX,
+                start_demand=_EX_START_DEMAND,
                 seed=42,
                 consumption_budget="lagrange",
             ),
@@ -68,7 +71,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
     ecu: float | None = Query(None),
     periods: int = Query(5, ge=1, le=500),
     growth: str | None = Query(None),
-    d0_fraction: str | None = Query(None),
+    start_demand: str | None = Query(None),
     demand_noise_std: float | None = Query(None),
     epsilon_noise_std: float | None = Query(None),
     seed: int | None = Query(None),
@@ -79,7 +82,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
         ecu=ecu,
         periods=periods,
         growth=growth,
-        d0_fraction=d0_fraction,
+        start_demand=start_demand,
         demand_noise_std=demand_noise_std,
         epsilon_noise_std=epsilon_noise_std,
         seed=seed,
@@ -102,8 +105,8 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
     sections = build_boundary_sections(results)
     last = results[-1]
     growth_rows = [(k, growth_d[k]) for k in BOUNDARY_KEYS]
-    d0_res = cfg.resolved_d0_fraction()
-    d0_rows = [(k, d0_res[k]) for k in BOUNDARY_KEYS]
+    sd_res = cfg.resolved_start_demand()
+    sd_rows = [(k, sd_res[k]) for k in BOUNDARY_KEYS]
     page = report_page(
         sections=sections,
         yearly_ecu=yearly_ecu_summaries(results),
@@ -112,7 +115,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
         n_months=len(results),
         budget_method=cfg.consumption_budget_method.value,
         growth_by_boundary=growth_rows,
-        d0_by_boundary=d0_rows,
+        start_demand_by_boundary=sd_rows,
         demand_noise_std=cfg.demand_at_reference_price_log_noise_std,
         epsilon_noise_std=cfg.epsilon_log_noise_std,
         seed=cfg.random_seed,

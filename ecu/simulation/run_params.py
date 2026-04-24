@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from urllib.parse import quote
 
 from ecu.logic.observations import BOUNDARY_KEYS
+from ecu.logic.planetary_constants import default_growth_by_key
 from ecu.simulation.config import SimulationConfig
 from ecu.simulation.consumption_budget import ConsumptionBudgetMethod
 
@@ -56,14 +57,14 @@ class RunParams:
     ``growth``: **Index** je Grenze (ganze Zahlen wie 100, 110, 90): Jahresfaktor = Index/100
     (100 = kein Wachstum, 110 = +10 %, 90 = −10 % **pro Jahr**; pro Zeitschritt ``(Index/100)^(1/steps_per_year)``,
     vgl. ``run_simulation(..., steps_per_year=…)`` — Standard 12 Monate, später z. B. 365 täglich).
-    ``d0_fraction``: Anteil der VEJ in % (Anteil = p/100).
+    ``start_demand``: Anteil der VEJ in % (Anteil = p/100).
     ``price_max_scale_pct`` (optional): p in % — bei hoher Auslastung geklemmte Σ p·VEJ-Normierung, sonst exakt; 0 = immer exakt.
     """
 
     ecu: float | None = None
     periods_years: int = 5
     growth_csv: str | None = None
-    d0_fraction_csv: str | None = None
+    start_demand_csv: str | None = None
     demand_noise_std: float | None = None
     epsilon_noise_std: float | None = None
     seed: int | None = None
@@ -76,7 +77,7 @@ class RunParams:
             ecu=ns.ecu,
             periods_years=ns.periods,
             growth_csv=ns.growth,
-            d0_fraction_csv=getattr(ns, "d0_fraction", None),
+            start_demand_csv=getattr(ns, "start_demand", None),
             demand_noise_std=ns.demand_noise_std,
             epsilon_noise_std=ns.epsilon_noise_std,
             seed=ns.seed,
@@ -98,10 +99,11 @@ class RunParams:
             cfg.random_seed = self.seed
         if self.consumption_budget is not None:
             cfg.consumption_budget_method = ConsumptionBudgetMethod(self.consumption_budget)
-        if self.d0_fraction_csv is not None:
-            vals = parse_float_list(self.d0_fraction_csv, len(BOUNDARY_KEYS), "d0_fraction")
-            cfg.d0_fraction_of_vej = {
-                BOUNDARY_KEYS[i]: RunParams._d0_percent_to_fraction(vals[i]) for i in range(len(BOUNDARY_KEYS))
+        if self.start_demand_csv is not None:
+            vals = parse_float_list(self.start_demand_csv, len(BOUNDARY_KEYS), "start_demand")
+            cfg.start_demand_of_vej = {
+                BOUNDARY_KEYS[i]: RunParams._start_demand_percent_to_fraction(vals[i])
+                for i in range(len(BOUNDARY_KEYS))
             }
         if self.max_shadow_price_scale_pct_per_year is not None:
             cfg.price.max_shadow_price_scale_pct_per_year = (
@@ -111,7 +113,7 @@ class RunParams:
     def growth_per_boundary(self) -> dict[str, float]:
         """Multiplikativer Jahresfaktor pro Grenze; Eingabe als Index (100 = Faktor 1)."""
         if self.growth_csv is None:
-            return {k: 1.0 for k in BOUNDARY_KEYS}
+            return default_growth_by_key()
         vals = parse_float_list(self.growth_csv, len(BOUNDARY_KEYS), "growth")
         return {
             BOUNDARY_KEYS[i]: RunParams._growth_index_to_factor(vals[i]) for i in range(len(BOUNDARY_KEYS))
@@ -123,7 +125,7 @@ class RunParams:
         return index / 100.0
 
     @staticmethod
-    def _d0_percent_to_fraction(p: float) -> float:
+    def _start_demand_percent_to_fraction(p: float) -> float:
         return p / 100.0
 
     @classmethod
@@ -133,7 +135,7 @@ class RunParams:
         ecu: float | None = None,
         periods: int = 5,
         growth: str | None = None,
-        d0_fraction: str | None = None,
+        start_demand: str | None = None,
         demand_noise_std: float | None = None,
         epsilon_noise_std: float | None = None,
         seed: int | None = None,
@@ -145,7 +147,7 @@ class RunParams:
             ecu=ecu,
             periods_years=periods,
             growth_csv=growth,
-            d0_fraction_csv=d0_fraction,
+            start_demand_csv=start_demand,
             demand_noise_std=demand_noise_std,
             epsilon_noise_std=epsilon_noise_std,
             seed=seed,
@@ -154,8 +156,8 @@ class RunParams:
         )
 
     def to_url_query(self) -> str:
-        """GET-Querystring; ``growth`` = Index-Liste, ``d0_fraction`` = %-Liste; ``|`` ohne ``%2C``."""
-        pipe_keys = frozenset({"growth", "d0_fraction"})
+        """GET-Querystring; ``growth`` = Index-Liste, ``start_demand`` = %-Liste; ``|`` ohne ``%2C``."""
+        pipe_keys = frozenset({"growth", "start_demand"})
 
         def enc(k: str, v: str) -> str:
             if k in pipe_keys:
@@ -167,8 +169,8 @@ class RunParams:
             items.append(("ecu", str(self.ecu)))
         if self.growth_csv is not None:
             items.append(("growth", self.growth_csv))
-        if self.d0_fraction_csv is not None:
-            items.append(("d0_fraction", self.d0_fraction_csv))
+        if self.start_demand_csv is not None:
+            items.append(("start_demand", self.start_demand_csv))
         if self.demand_noise_std is not None:
             items.append(("demand_noise_std", str(self.demand_noise_std)))
         if self.epsilon_noise_std is not None:

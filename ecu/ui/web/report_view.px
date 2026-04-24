@@ -106,19 +106,19 @@ def RunParamsBlock(
     n_months: int,
     budget_method: str,
     growth_by_boundary: list[tuple[str, float]],
-    d0_by_boundary: list[tuple[str, float]],
+    start_demand_by_boundary: list[tuple[str, float]],
     demand_noise_std: float,
     epsilon_noise_std: float,
     seed: int | None,
     children: list | None = None,
 ) -> JSX:
-    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und f₀ (VEJ-Anteil). ``n_months`` für API-Kompatibilität."""
+    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und Start-Nachfrage (VEJ-Anteil). ``n_months`` für API-Kompatibilität."""
     _ = (children, n_months)
     row1 = RL.run_params_row(
         ecu_per_year, periods_years, budget_method, demand_noise_std, epsilon_noise_std, seed
     )
     gline = RL.growth_one_line(growth_by_boundary)
-    d0line = RL.d0_one_line(d0_by_boundary)
+    sdline = RL.start_demand_one_line(start_demand_by_boundary)
     return (
         <section class="not-prose mb-6">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Laufparameter</p>
@@ -137,9 +137,9 @@ def RunParamsBlock(
                     {gline}
                 </div>
                 <div class="border-t border-slate-100 bg-white px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
-                    <span class="font-medium text-slate-500">f₀ (% VEJ)</span>
+                    <span class="font-medium text-slate-500">Start-Nachfrage (% VEJ)</span>
                     {": "}
-                    {d0line}
+                    {sdline}
                 </div>
             </div>
         </section>
@@ -287,7 +287,7 @@ def report_page(
     n_months: int,
     budget_method: str,
     growth_by_boundary: list[tuple[str, float]],
-    d0_by_boundary: list[tuple[str, float]],
+    start_demand_by_boundary: list[tuple[str, float]],
     demand_noise_std: float,
     epsilon_noise_std: float,
     seed: int | None,
@@ -306,7 +306,7 @@ def report_page(
                         n_months={n_months}
                         budget_method={budget_method}
                         growth_by_boundary={growth_by_boundary}
-                        d0_by_boundary={d0_by_boundary}
+                        start_demand_by_boundary={start_demand_by_boundary}
                         demand_noise_std={demand_noise_std}
                         epsilon_noise_std={epsilon_noise_std}
                         seed={seed}

@@ -100,7 +100,7 @@ def reference_shadow_prices_for_demand(cfg: SimulationConfig, vej: dict[str, flo
     """
     Referenzpreise für die Nachfragefunktion: Start-Schattenpreise, dann ``resolved_p_ref``.
     """
-    initial = initial_shadow_prices_for_ecu(vej, ecu_per_year, cfg.resolved_d0_fraction())
+    initial = initial_shadow_prices_for_ecu(vej, ecu_per_year, cfg.resolved_start_demand())
     return cfg.resolved_p_ref(initial)
 
 def scale_to_ecu_budget_at_vej_fractions(prices: dict[str, float], vej: dict[str, float], ecu_per_year: float, fraction_of_vej: dict[str, float]) -> dict[str, float]:
