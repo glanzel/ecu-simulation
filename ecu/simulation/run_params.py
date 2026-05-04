@@ -58,7 +58,8 @@ class RunParams:
     (100 = kein Wachstum, 110 = +10 %, 90 = −10 % **pro Jahr**; pro Zeitschritt ``(Index/100)^(1/steps_per_year)``,
     vgl. ``run_simulation(..., steps_per_year=…)`` — Standard 12 Monate, später z. B. 365 täglich).
     ``start_demand``: Anteil der VEJ in % (Anteil = p/100).
-    ``price_max_scale_pct`` (optional): p in % — bei hoher Auslastung geklemmte Σ p·VEJ-Normierung, sonst exakt; 0 = immer exakt.
+    ``price_max_bundle_scale_pct`` (optional): p in % — Klemme der Σ p·VEJ-Normierung ggü. voriger Periode
+    bei hoher Auslastung; 0 = immer exakte Normierung. Standard aus ``PriceConfig``.
     """
 
     ecu: float | None = None
@@ -69,7 +70,7 @@ class RunParams:
     epsilon_noise_std: float | None = None
     seed: int | None = None
     consumption_budget: str | None = None
-    max_shadow_price_scale_pct_per_year: float | None = None
+    max_shadow_bundle_scale_pct_per_period: float | None = None
 
     @classmethod
     def from_argparse(cls, ns: argparse.Namespace) -> RunParams:
@@ -82,8 +83,8 @@ class RunParams:
             epsilon_noise_std=ns.epsilon_noise_std,
             seed=ns.seed,
             consumption_budget=ns.consumption_budget,
-            max_shadow_price_scale_pct_per_year=getattr(
-                ns, "price_max_scale_pct", None
+            max_shadow_bundle_scale_pct_per_period=getattr(
+                ns, "price_max_bundle_scale_pct", None
             ),
         )
 
@@ -105,9 +106,9 @@ class RunParams:
                 BOUNDARY_KEYS[i]: RunParams._start_demand_percent_to_fraction(vals[i])
                 for i in range(len(BOUNDARY_KEYS))
             }
-        if self.max_shadow_price_scale_pct_per_year is not None:
-            cfg.price.max_shadow_price_scale_pct_per_year = (
-                self.max_shadow_price_scale_pct_per_year
+        if self.max_shadow_bundle_scale_pct_per_period is not None:
+            cfg.price.max_shadow_bundle_scale_pct_per_period = (
+                self.max_shadow_bundle_scale_pct_per_period
             )
 
     def growth_per_boundary(self) -> dict[str, float]:
@@ -140,7 +141,7 @@ class RunParams:
         epsilon_noise_std: float | None = None,
         seed: int | None = None,
         consumption_budget: str | None = None,
-        price_max_scale_pct: float | None = None,
+        price_max_bundle_scale_pct: float | None = None,
     ) -> RunParams:
         """Parameter wie bei FastAPI-``Query``-Defaults (fehlende Optionals = Konfig-Default)."""
         return cls(
@@ -152,7 +153,7 @@ class RunParams:
             epsilon_noise_std=epsilon_noise_std,
             seed=seed,
             consumption_budget=consumption_budget,
-            max_shadow_price_scale_pct_per_year=price_max_scale_pct,
+            max_shadow_bundle_scale_pct_per_period=price_max_bundle_scale_pct,
         )
 
     def to_url_query(self) -> str:
@@ -179,11 +180,11 @@ class RunParams:
             items.append(("seed", str(self.seed)))
         if self.consumption_budget is not None:
             items.append(("consumption_budget", self.consumption_budget))
-        if self.max_shadow_price_scale_pct_per_year is not None:
+        if self.max_shadow_bundle_scale_pct_per_period is not None:
             items.append(
                 (
-                    "price_max_scale_pct",
-                    str(self.max_shadow_price_scale_pct_per_year),
+                    "price_max_bundle_scale_pct",
+                    str(self.max_shadow_bundle_scale_pct_per_period),
                 )
             )
         return "&".join(f"{k}={enc(k, v)}" for k, v in items)

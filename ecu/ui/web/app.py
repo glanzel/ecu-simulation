@@ -4,6 +4,7 @@ FastAPI-Einstieg: ``import pyjsx.auto_setup`` muss vor Imports aus ``.px``-Modul
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import pyjsx.auto_setup  # noqa: E402, F401 — registriert Import-Hook für ``.px``
@@ -13,6 +14,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from ecu.logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR
+from ecu.logic.planetary_constants import default_start_demand_by_key
 from ecu.simulation.config import default_config
 from ecu.simulation.report_aggregates import yearly_ecu_summaries
 from ecu.simulation.run_params import RunParams
@@ -29,8 +31,15 @@ app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 # Beispiel-Listen (Reihenfolge = ``BOUNDARY_KEYS``): ein Eintrag pro planetarer Grenze.
 _EX_G_CO2_102 = "102|" + "|".join(["100"] * 8)
-_EX_START_DEMAND = "40|45|50|45|45|45|45|45|45"
-_EX_G_MIX = "101|100|100.5|" + "|".join(["100"] * 6)
+# Wachstums-Index 100 je Grenze (explizit vollständige Liste in der URL).
+_EX_G_ALL_100 = "|".join(["100"] * len(BOUNDARY_KEYS))
+# Wie ``SimulationConfig``: Log-Raum-σ ≈ ±1 %/Monat.
+_LOG_NOISE_DEFAULT = math.log(1.01)
+
+
+def _default_start_demand_percent_csv() -> str:
+    d = default_start_demand_by_key()
+    return "|".join(f"{d[k] * 100.0:.2f}" for k in BOUNDARY_KEYS)
 
 
 def _example_links() -> list[tuple[str, str]]:
@@ -41,12 +50,15 @@ def _example_links() -> list[tuple[str, str]]:
         (
             "Alle Parameter (Beispiel)",
             RunParams.from_web_query(
-                ecu=95_000.0,
+                ecu=100_000.0,
                 periods=3,
-                growth=_EX_G_MIX,
-                start_demand=_EX_START_DEMAND,
+                growth=_EX_G_ALL_100,
+                start_demand=_default_start_demand_percent_csv(),
+                demand_noise_std=_LOG_NOISE_DEFAULT,
+                epsilon_noise_std=_LOG_NOISE_DEFAULT,
                 seed=42,
                 consumption_budget="lagrange",
+                price_max_bundle_scale_pct=1.0,
             ),
         ),
     ]
@@ -77,7 +89,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
     epsilon_noise_std: float | None = Query(None),
     seed: int | None = Query(None),
     consumption_budget: str | None = Query(None),
-    price_max_scale_pct: float | None = Query(None),
+    price_max_bundle_scale_pct: float | None = Query(None),
 ) -> HTMLResponse:
     params = RunParams.from_web_query(
         ecu=ecu,
@@ -88,7 +100,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
         epsilon_noise_std=epsilon_noise_std,
         seed=seed,
         consumption_budget=consumption_budget,
-        price_max_scale_pct=price_max_scale_pct,
+        price_max_bundle_scale_pct=price_max_bundle_scale_pct,
     )
     cfg = default_config()
     try:

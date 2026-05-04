@@ -109,14 +109,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     p.add_argument(
-        "--price-max-scale-pct",
+        "--price-max-bundle-scale-pct",
         type=float,
         default=None,
-        dest="price_max_scale_pct",
+        dest="price_max_bundle_scale_pct",
         metavar="PCT",
         help=(
-            "Wenn mittlere Auslastung (letzter Monat) > 1 + p/100: Normierung Σ p·VEJ mit geklemmtem "
-            "Faktor in [1−p/100, 1+p/100]; sonst exakte Normierung. 0 = immer exakt (Standard)."
+            "Obergrenze p in % pro Simulationsperiode: bei mittlerer Auslastung (letzter Monat) > 1 + p/100 "
+            "wird die Normierung auf Σ p·VEJ so geklemmt, dass sich das Bündel ggü. der vorigen Periode "
+            "höchstens um ±p % ändert; sonst exakte Normierung. 0 = immer exakt. "
+            "Standard: 1 (ohne Flag, aus PriceConfig)."
         ),
     )
     return p.parse_args(argv)

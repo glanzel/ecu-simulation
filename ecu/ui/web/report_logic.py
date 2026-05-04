@@ -31,9 +31,9 @@ REPORT_GAP: str = "gap-1"
 
 RUN_PARAMS_HDR: list[str] = ["EcuJ", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
 YEARLY_ECU_HDR: list[str] = ["Jahr", "Σ p·VEJ", "Slack", "Ø Auslast."]
-MONTH_HDR: list[str] = ["Mon", "p", "consumption", "p·c", "N. p_ref", "VET", "c/VET %"]
-YEAR_HDR: list[str] = ["Jahr", "Ø p", "Σ consumption", "Σ N. p_ref", "Σ p·c", "VEJ", "Σc/VEJ %"]
-BOUNDARY_SUMMARY_HDR: list[str] = ["Grenze", "Σ consumption", "Σ N. p_ref", "Σ p·c", "VEJ", "Σc/VEJ %"]
+MONTH_HDR: list[str] = ["Mon", "p", "consumption", "ges. Ecu", "Demand", "VET", "c/VET %"]
+YEAR_HDR: list[str] = ["Jahr", "Ø p", "Σ consumption", "Σ Demand", "Σ ges. Ecu", "VEJ", "Σc/VEJ %"]
+BOUNDARY_SUMMARY_HDR: list[str] = ["Grenze", "Σ consumption", "Σ Demand", "Σ ges. Ecu", "VEJ", "Σc/VEJ %"]
 
 
 def fmt_num(x: float, prec: int = 6) -> str:
