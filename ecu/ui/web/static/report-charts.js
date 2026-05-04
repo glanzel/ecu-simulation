@@ -91,7 +91,7 @@
               borderWidth: 2,
             },
             {
-              label: "Σ p·Konsum (verbuchte ECU/Monat)",
+              label: "ges. Ecu",
               data: payload.ecuExpenditure,
               borderColor: colors[2],
               tension: 0.15,

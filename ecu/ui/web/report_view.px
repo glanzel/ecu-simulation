@@ -270,7 +270,7 @@ def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
                 </div>
                 <div>
                     <p class="text-xs font-medium text-slate-700 mb-2">
-                        Gesamter Kontenrahmen (ECU/Monat): Σ p·VEJ und Σ p·Konsum
+                        Gesamter Kontenrahmen (ECU/Monat): Σ p·VEJ und ges. Ecu
                     </p>
                     <div class="relative h-64 w-full min-h-[200px]">
                         <canvas id="chart-ecu-totals"></canvas>
@@ -365,8 +365,8 @@ def report_page(
                         Grenzen
                     </p>
                     <p class="text-[10px] text-slate-500 mb-3 not-prose leading-snug">
-                        N. p_ref = Nachfrage bei Referenzpreis (demand_at_reference_price), gleiche Einheit wie
-                        consumption / Monat.
+                        Spalte Demand = Referenznachfrage (demand_at_reference_price), gleiche Einheit wie
+                        consumption / Monat. Spalte ges. Ecu = p·c (verbuchte ECU an der Grenze bzw. summiert).
                     </p>
                     <div class="not-prose flex flex-col gap-3">
                         {[<BoundaryBlock section={sec} /> for sec in sections]}

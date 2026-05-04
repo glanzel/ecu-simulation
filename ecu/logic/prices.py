@@ -55,7 +55,7 @@ def scale_budget_to_ecu(prices: dict[str, float], vej: dict[str, float], ecu_per
     return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
 
-def scale_percentual_to_ecu(prices_new: dict[str, float], vej: dict[str, float], ecu_per_year: float, max_scale_pct_per_year: float, bundle_previous: float) -> dict[str, float]:
+def scale_percentual_to_ecu(prices_new: dict[str, float], vej: dict[str, float], ecu_per_year: float, max_scale_pct_per_period: float, bundle_previous: float) -> dict[str, float]:
     """
     Rohpreise ``prices_new`` (geratene neue Verhältnisse aus der Timeline) einheitlich skalieren:
     ``p' = s · p_new`` — die **relativen** Verhältnisse der neuen Preise bleiben erhalten.
@@ -64,7 +64,7 @@ def scale_percentual_to_ecu(prices_new: dict[str, float], vej: dict[str, float],
     das neue Bündel ist ``B_neu(s) = s · B_roh`` mit ``B_roh = Σ p_new · VEJ``.
 
     Zielrichtung ECU: ``s_ecu = ecu_per_year / B_roh``. Zusätzlich soll sich das Bündel gegenüber
-    dem **alten** Bündel höchstens um ``p`` Prozent ändern (``p`` = ``max_scale_pct_per_year``):
+    dem **vorigen Zeitschritt** höchstens um ``p`` Prozent ändern (``p`` = ``max_scale_pct_per_period``):
     ``B_neu ∈ [bundle_previous·(1−p/100), bundle_previous·(1+p/100)]``, also
     ``s ∈ [bundle_previous·(1−p/100)/B_roh, bundle_previous·(1+p/100)/B_roh]``.
     Gewählt wird ``s = clamp(s_ecu, s_min, s_max)`` (ein Schritt, keine Schleife).
@@ -74,7 +74,7 @@ def scale_percentual_to_ecu(prices_new: dict[str, float], vej: dict[str, float],
         raise ValueError("Summe p·VEJ der Rohpreise muss positiv sein.")
     if bundle_previous <= 0:
         raise ValueError("Referenz-Bündel Σ p_alt·VEJ muss positiv sein.")
-    half_band = max_scale_pct_per_year / 100.0
+    half_band = max_scale_pct_per_period / 100.0
     s_ecu = ecu_per_year / bundle_raw
     s_min = bundle_previous * (1.0 - half_band) / bundle_raw
     s_max = bundle_previous * (1.0 + half_band) / bundle_raw
@@ -255,7 +255,7 @@ def _raw_shadow_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str,
     last_interval = timeline.last
     tol = price_cfg.tolerance
     default_price_multiplier = price_cfg.price_bump
-    max_s = price_cfg.max_shadow_price_scale_pct_per_year
+    max_s = price_cfg.max_shadow_bundle_scale_pct_per_period
     if max_s > 0.0:
         bump_cap = 1.0 + 2.0 * (max_s / 100.0)
         default_price_multiplier = min(default_price_multiplier, bump_cap)
@@ -310,7 +310,7 @@ def advance_shadow_prices(timeline: ConsumptionTimeline, vej: dict[str, float], 
 
     - **Leere Timeline** (erster Monat): ``initial_shadow_prices_for_ecu`` (``Σ p·f·VEJ = EcuJ``).
     - **Sonst**: Rohpreise aus ``_raw_shadow_prices_from_timeline``, dann Normierung auf
-      ``Σ p·VEJ = EcuJ``: bei ``max_shadow_price_scale_pct_per_year > 0`` und mittlerer
+      ``Σ p·VEJ = EcuJ``: bei ``max_shadow_bundle_scale_pct_per_period > 0`` und mittlerer
       Auslastung des letzten Monats ``> 1 + p/100`` ``scale_percentual_to_ecu`` (Referenz:
       Bündel der zuletzt gültigen Preise), sonst ``scale_budget_to_ecu``.
 
@@ -330,7 +330,7 @@ def advance_shadow_prices(timeline: ConsumptionTimeline, vej: dict[str, float], 
     prices_last = {k: last_interval.price_for(k) for k in BOUNDARY_KEYS}
     bundle_previous = bundle_value(prices_last, vej_annual)
     mean_u = _mean_boundary_utilization_last_interval(timeline)
-    max_pct = price_cfg.max_shadow_price_scale_pct_per_year
+    max_pct = price_cfg.max_shadow_bundle_scale_pct_per_period
     threshold = 1.0 + max_pct / 100.0 if max_pct > 0.0 else float("inf")
 
     if max_pct > 0.0 and mean_u > threshold:
