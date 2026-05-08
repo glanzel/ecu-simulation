@@ -115,7 +115,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "ECU-Obergrenze für Σ p·c (kein Hochskalieren): "
             "'scale' = proportionale Drosselung nur wenn Rohkonsum die Grenze übersteigt; "
-            "'lagrange' = bei Überschreitung Cobb-Douglas-Aufteilung mit Budget = ecumenge_T (simulierte Monatsmenge). "
+            "'lagrange' = bei Überschreitung Konsum als EUKLID-Nächstlage zu Roh-Nachfrage unter Budget ecumenge_T "
+            "(nicht mehr Cobb-Douglas-Gewichte). "
             "Standard: scale (Konfiguration)."
         ),
     )
