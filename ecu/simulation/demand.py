@@ -18,7 +18,7 @@ Legende — Parameter von ``consumption_quantity``:
     demand_at_reference_price
         Nachfragemenge bei Referenzpreis (Skalierung / Kurvenverschiebung; in der Simulation u. a. Wachstum).
     reference_shadow_price
-        Referenz-Schattenpreis (typisch Start-Schattenpreis nach EcuJ-Normierung), > 0.
+        Referenz-Schattenpreis (typisch Start-Schattenpreis nach Normierung auf ecumenge_ziel_J), > 0.
     price_elasticity
         Konstante Preiselastizität ε < 0 entlang der Kurve.
 

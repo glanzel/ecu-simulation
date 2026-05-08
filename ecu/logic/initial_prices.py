@@ -24,16 +24,16 @@ def initial_weights_uniform(n: int) -> list[float]:
 
 def prices_from_weights(
     vej_ziel: dict[str, float],
-    ecu_per_year: float,
+    ecumenge_ziel_J: float,
     weights: Sequence[float],
 ) -> dict[str, float]:
     """
     Baut den Start-Schattenpreis je Grenze aus relativen Gewichten und Jahres-ECU-Budget.
 
-    Formel pro Grenze *i*: ``p_i = w_i · ecu_per_year / VEJ-Ziel_i``, wobei die Eingabe-
+    Formel pro Grenze *i*: ``p_i = w_i · ecumenge_ziel_J / VEJ-Ziel_i``, wobei die Eingabe-
     gewichte zuerst auf Summe 1 normiert werden (``Σ w_i = 1``).
 
-    ``ecu_per_year`` ist das Ziel für die gewichtete Summe ``Σ_i p_i · VEJ-Ziel_i`` nach
+    ``ecumenge_ziel_J`` ist das Ziel für die gewichtete Summe ``Σ_i p_i · VEJ-Ziel_i`` nach
     Normierung der Gewichte (vor weiterer Skalierung durch andere Schritte).
     """
     boundary_order = list(BOUNDARY_KEYS)
@@ -49,14 +49,14 @@ def prices_from_weights(
         if vej_ziel_at <= 0:
             raise ValueError(f"VEJ-Ziel für {boundary_key} muss positiv sein.")
         shadow_prices[boundary_key] = (
-            normalized_weights[index] * ecu_per_year / vej_ziel_at
+            normalized_weights[index] * ecumenge_ziel_J / vej_ziel_at
         )
     return shadow_prices
 
 
 def raw_initial_shadow_prices_from_utilization(
     vej_ziel: dict[str, float],
-    ecu_per_year_soll: float,
+    ecumenge_ziel_J: float,
     utilization_by_boundary: Mapping[str, float],
     weights: Sequence[float],
 ) -> dict[str, float]:
@@ -73,14 +73,14 @@ def raw_initial_shadow_prices_from_utilization(
     normalized_weights = [wi / weight_sum for wi in weights]
     u_safe = [max(_MIN_UTILIZATION, float(utilization_by_boundary[k])) for k in boundary_order]
     u_avg = sum(u_safe) / float(len(u_safe))
-    if ecu_per_year_soll <= 0:
-        raise ValueError("ecu_per_year_soll muss positiv sein.")
+    if ecumenge_ziel_J <= 0:
+        raise ValueError("ecumenge_ziel_J muss positiv sein.")
     out: dict[str, float] = {}
     for index, boundary_key in enumerate(boundary_order):
         vej_ziel_at = vej_ziel[boundary_key]
         if vej_ziel_at <= 0:
             raise ValueError(f"VEJ-Ziel für {boundary_key} muss positiv sein.")
         out[boundary_key] = (
-            normalized_weights[index] * ecu_per_year_soll * u_avg / (vej_ziel_at * u_safe[index])
+            normalized_weights[index] * ecumenge_ziel_J * u_avg / (vej_ziel_at * u_safe[index])
         )
     return out

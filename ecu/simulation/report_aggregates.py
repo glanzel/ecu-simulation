@@ -12,7 +12,7 @@ from ecu.simulation.simulation import PeriodResult
 WARMUP_DIAG_TABLE_HEADER: list[str] = [
     "Mon",
     "Σ p·VET-Soll (Mon.)",
-    "EcuJ Soll/12",
+    "ecumenge_ziel_sim_J/12",
     "Δ Monat",
     "Δ Jahr",
 ]
@@ -39,8 +39,8 @@ class YearlyEcuSummary:
 
     year_index: int
     n_months: int
-    ecu_per_year: float
-    sum_ecu_expenditure: float
+    ecumenge_ziel_J: float
+    sum_ecu_ist_J: float
     bundle_ecu: float
     slack_vej: float
     mean_utilization: float
@@ -79,16 +79,16 @@ def yearly_ecu_summaries(results: list[PeriodResult]) -> list[YearlyEcuSummary]:
     for y in sorted(by_y.keys()):
         mrows = by_y[y]
         n = len(mrows)
-        sum_pc = sum(x.ecu_expenditure for x in mrows)
+        sum_pc = sum(x.ecu_ist_T for x in mrows)
         last = mrows[-1]
-        slack = last.bundle_ecu - last.ecu_per_year_soll
+        slack = last.bundle_ecu - last.ecumenge_ziel_J
         mean_u = sum(x.mean_utilization for x in mrows) / float(n)
         out.append(
             YearlyEcuSummary(
                 year_index=y,
                 n_months=n,
-                ecu_per_year=last.ecu_per_year_soll,
-                sum_ecu_expenditure=sum_pc,
+                ecumenge_ziel_J=last.ecumenge_ziel_J,
+                sum_ecu_ist_J=sum_pc,
                 bundle_ecu=last.bundle_ecu,
                 slack_vej=slack,
                 mean_utilization=mean_u,
@@ -167,13 +167,13 @@ def _fmt_warmup_cell(x: float) -> str:
 
 
 def warmup_diagnostic_table_rows(results: list[PeriodResult]) -> list[list[str]] | None:
-    """Zeilen für Tabelle Warmup: ``Σ p·VET`` (Monat) vs. ``ecu_soll_effective/12`` (CLI/Web)."""
+    """Zeilen für Tabelle Warmup: ``Σ p·VET`` (Monat) vs. ``ecumenge_ziel_sim_J/12`` (CLI/Web)."""
     rrows: list[list[str]] = []
     for r in results:
-        if r.warmup_diag_sum_p_vet_soll_monthly is None or r.warmup_diag_ecu_soll_monthly is None:
+        if r.warmup_diag_sum_p_vet_soll_monthly is None or r.warmup_diag_ecumenge_ziel_sim_monthly is None:
             continue
         sm = r.warmup_diag_sum_p_vet_soll_monthly
-        em = r.warmup_diag_ecu_soll_monthly
+        em = r.warmup_diag_ecumenge_ziel_sim_monthly
         d_m = sm - em
         d_y = d_m * float(MONTHS_PER_YEAR)
         rrows.append(
