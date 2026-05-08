@@ -50,7 +50,7 @@ def _example_links() -> list[tuple[str, str]]:
         (
             "Alle Parameter (Beispiel)",
             RunParams.from_web_query(
-                ecu=100_000.0,
+                ecumenge_ziel_J=100_000.0,
                 periods=3,
                 growth=_EX_G_ALL_100,
                 start_demand=_default_start_demand_percent_csv(),
@@ -81,7 +81,7 @@ def index() -> HTMLResponse:
 
 @app.get("/report", response_class=HTMLResponse)
 def report(  # HTML: ``ecu.ui.web.report.report_page``
-    ecu: float | None = Query(None),
+    ecumenge_ziel_J: float | None = Query(None),
     periods: int = Query(5, ge=1, le=500),
     growth: str | None = Query(None),
     start_demand: str | None = Query(None),
@@ -93,7 +93,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
     price_elasticity_warmup_months: int | None = Query(None, ge=0, le=240),
 ) -> HTMLResponse:
     params = RunParams.from_web_query(
-        ecu=ecu,
+        ecumenge_ziel_J=ecumenge_ziel_J,
         periods=periods,
         growth=growth,
         start_demand=start_demand,
@@ -125,8 +125,8 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
     page = report_page(
         sections=sections,
         yearly_ecu=yearly_ecu_summaries(results),
-        ecu_per_year_soll=last.ecu_per_year_soll,
-        ecu_per_year_ist=last.ecu_per_year_ist,
+        ecumenge_ziel_J=last.ecumenge_ziel_J,
+        ecumenge_J=last.ecumenge_J,
         periods_years=params.periods_years,
         n_months=len(results),
         budget_method=cfg.consumption_budget_method.value,

@@ -7,7 +7,7 @@ from ecu.simulation.demand import consumption_quantity
 from ecu.simulation.simulation import (
     PeriodResult,
     build_vej_ziel_bundle,
-    ecu_per_year_ist_from_start,
+    ecumenge_J_from_start,
     mean_boundary_utilization,
     mean_start_utilization_from_fractions,
     run_one_period,
@@ -23,7 +23,7 @@ __all__ = (
     "build_vej_ziel_bundle",
     "consumption_quantity",
     "default_config",
-    "ecu_per_year_ist_from_start",
+    "ecumenge_J_from_start",
     "mean_boundary_utilization",
     "mean_start_utilization_from_fractions",
     "run_one_period",

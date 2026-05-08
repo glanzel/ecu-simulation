@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 from ecu.logic.planetary_constants import ALL_BOUNDARIES
+from ecu.logic.observations import MONTHS_PER_YEAR
 from ecu.simulation.simulation import PeriodResult
 
 
@@ -23,18 +24,23 @@ def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
             "labels": [],
             "boundaries": [],
             "meanUtilization": [],
-            "bundleEcu": [],
-            "ecuExpenditure": [],
-            "ecuCeilingMonth": [],
+            "bundle_ecu_T": [],
+            "ecu_ist_T": [],
+            "ecumenge_ziel_J_T": [],
+            "ecumenge_ziel_sim_J_T": [],
+            "ecumenge_T": [],
             "pctVetSeries": [],
             "priceSeries": [],
         }
+    inv_y = 1.0 / float(MONTHS_PER_YEAR)
     labels = [str(r.period) for r in results]
     boundaries = [{"key": b.key, "label": b.label_de} for b in ALL_BOUNDARIES]
     mean_u = [_num_json(r.mean_utilization) for r in results]
-    bundle = [_num_json(r.bundle_ecu) for r in results]
-    exp = [_num_json(r.ecu_expenditure) for r in results]
-    cap_m = [_num_json(r.ecu_ceiling_month) for r in results]
+    bundle_m = [_num_json(r.bundle_ecu * inv_y) for r in results]
+    exp = [_num_json(r.ecu_ist_T) for r in results]
+    ziel_cfg_m = [_num_json(r.ecumenge_ziel_J * inv_y) for r in results]
+    ziel_sim_m = [_num_json(r.consumption_timeline.ecumenge_ziel_sim_J * inv_y) for r in results]
+    cap_m = [_num_json(r.ecumenge_T) for r in results]
     pct_vet_series: list[list[float | None]] = []
     price_series: list[list[float | None]] = []
     for b in ALL_BOUNDARIES:
@@ -53,9 +59,11 @@ def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
         "labels": labels,
         "boundaries": boundaries,
         "meanUtilization": mean_u,
-        "bundleEcu": bundle,
-        "ecuExpenditure": exp,
-        "ecuCeilingMonth": cap_m,
+        "bundle_ecu_T": bundle_m,
+        "ecu_ist_T": exp,
+        "ecumenge_ziel_J_T": ziel_cfg_m,
+        "ecumenge_ziel_sim_J_T": ziel_sim_m,
+        "ecumenge_T": cap_m,
         "pctVetSeries": pct_vet_series,
         "priceSeries": price_series,
     }

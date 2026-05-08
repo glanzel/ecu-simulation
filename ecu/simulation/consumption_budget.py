@@ -43,43 +43,43 @@ def bundle_expenditure(
 def apply_consumption_budget(
     raw_vej_ist: dict[str, float],
     prices: dict[str, float],
-    ecu_ceiling: float,
+    ecumenge_T: float,
     method: ConsumptionBudgetMethod,
 ) -> dict[str, float]:
     """
-    Wendet die ECU-**Obergrenze** ``ecu_ceiling`` an: kein Ausgeben mehr ECU als ``ecu_ceiling``;
+    Wendet die simulierte ECU-Menge ``ecumenge_T`` (Obergrenze) an: nicht mehr ausgeben als ``ecumenge_T``;
     bei ungenutzter Kapazität bleibt der Rohkonsum unverändert (kein Hochskalieren auf ``E``).
     """
-    if ecu_ceiling <= 0:
-        raise ValueError("ecu_ceiling muss positiv sein.")
+    if ecumenge_T <= 0:
+        raise ValueError("ecumenge_T muss positiv sein.")
     spend = bundle_expenditure(prices, raw_vej_ist)
-    if spend <= ecu_ceiling + _BUDGET_TOL:
+    if spend <= ecumenge_T + _BUDGET_TOL:
         return {k: raw_vej_ist[k] for k in BOUNDARY_KEYS}
     if spend <= 0:
         raise ValueError(
             "Σ p·c̃ übersteigt die ECU-Obergrenze, ist aber nicht positiv — ungültige Rohdaten."
         )
     if method == ConsumptionBudgetMethod.SCALE:
-        return _apply_scale_when_over(raw_vej_ist, prices, ecu_ceiling, spend)
+        return _apply_scale_when_over(raw_vej_ist, prices, ecumenge_T, spend)
     if method == ConsumptionBudgetMethod.LAGRANGE:
-        return _apply_lagrange_weights(raw_vej_ist, prices, ecu_ceiling)
+        return _apply_lagrange_weights(raw_vej_ist, prices, ecumenge_T)
     raise ValueError(f"unbekannte ConsumptionBudgetMethod: {method!r}")
 
 
 def _apply_scale_when_over(
     raw_vej_ist: dict[str, float],
     prices: dict[str, float],
-    ecu_ceiling: float,
+    ecumenge_T: float,
     spend: float,
 ) -> dict[str, float]:
-    scale = ecu_ceiling / spend
+    scale = ecumenge_T / spend
     return {k: raw_vej_ist[k] * scale for k in BOUNDARY_KEYS}
 
 
 def _apply_lagrange_weights(
     raw_vej_ist: dict[str, float],
     prices: dict[str, float],
-    ecu_ceiling: float,
+    ecumenge_T: float,
 ) -> dict[str, float]:
     weights = {k: max(raw_vej_ist[k], _MIN_WEIGHT) for k in BOUNDARY_KEYS}
     w_sum = sum(weights.values())
@@ -88,5 +88,5 @@ def _apply_lagrange_weights(
         pk = prices[k]
         if pk <= 0:
             raise ValueError(f"Schattenpreis für {k!r} muss positiv sein.")
-        out[k] = ecu_ceiling * weights[k] / (pk * w_sum)
+        out[k] = ecumenge_T * weights[k] / (pk * w_sum)
     return out

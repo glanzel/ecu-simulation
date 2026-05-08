@@ -1,4 +1,4 @@
-"""Laufzeit-Konfiguration: EcuJ, Referenzpreise, Elastizitäten, Nachfrage-Basis, Preis-Kybernetik."""
+"""Laufzeit-Konfiguration: ecumenge_ziel_J, Referenzpreise, Elastizitäten, Nachfrage-Basis, Preis-Kybernetik."""
 
 from __future__ import annotations
 
@@ -17,17 +17,17 @@ _DEFAULT_LOG_NOISE_STD_FOR_CA_ONE_PERCENT: float = math.log(1.01)
 
 @dataclass
 class SimulationConfig:
-    """Start-EcuJ, dynamische Anpassung, Nachfrageparameter; Preislogik in ``price``."""
+    """Startwerte für ECU-Jahresziel, dynamische Anpassung, Nachfrageparameter; Preislogik in ``price``."""
 
-    # Verteiltes ECU-Jahresvolumen EcuJ (konstant): Ziel ``Σ p·VEJ = ecu_per_year``
-    # über gemeinsame Preisskalierung, nicht durch Änderung von EcuJ.
-    ecu_per_year: float = 100_000.0
-    # Referenz-Schattenpreis p_ref,i (ECU/Einh.); Fallback: Start-Schattenpreis nach EcuJ-Normierung
+    # Verteiltes ECU-Jahresvolumen (konstant): Ziel ``Σ p·VEJ = ecumenge_ziel_J``
+    # über gemeinsame Preisskalierung, nicht durch Änderung der Jahresmenge.
+    ecumenge_ziel_J: float = 100_000.0
+    # Referenz-Schattenpreis p_ref,i (ECU/Einh.); Fallback: Start-Schattenpreis nach Normierung auf ecumenge_ziel_J
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
     # Anteil f_i der VEJ: D_i(p_ref) = f_i·VET_i (Referenznachfrage; Startanker der Kurve).
-    # Start-Schattenpreise werden so normiert, dass Σ p·(f·VET) = EcuJ/12 (Referenzkonsum am Budget).
+    # Start-Schattenpreise werden so normiert, dass Σ p·(f·VET) = ecumenge_ziel_J/12 (Referenzkonsum am Budget).
     # Fehlende Schlüssel: ``BoundaryConstants.start_demand_percent`` / 100 je Grenze in ``ALL_BOUNDARIES``.
     start_demand_of_vej: Mapping[str, float] = field(default_factory=dict)
     # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(Z), Z ~ N(0, σ); σ wie Modulkonstante.
@@ -38,7 +38,7 @@ class SimulationConfig:
     random_seed: int | None = None
     # Kybernetik der Schattenpreise (Schattenpreisfindung aus Timeline)
     price: PriceConfig = field(default_factory=PriceConfig)
-    # Roh-Nachfrage gegen ECU-Obergrenze pro Monat: Σ p·c ≤ ecu_per_year/12 (keine VEJ-Logik im Budget)
+    # Roh-Nachfrage gegen ECU-Obergrenze pro Monat: Σ p·c ≤ ecumenge_ziel_J/12 (keine VEJ-Logik im Budget)
     consumption_budget_method: ConsumptionBudgetMethod = ConsumptionBudgetMethod.SCALE
 
     def resolved_p_ref(self, initial_prices: dict[str, float]) -> dict[str, float]:

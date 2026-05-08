@@ -64,7 +64,7 @@ class RunParams:
     gleiche N als Mindestzahl gültiger Historienpunkte; davor nur Bump + weiche Staffel.
     """
 
-    ecu: float | None = None
+    ecumenge_ziel_J: float | None = None
     periods_years: int = 5
     growth_csv: str | None = None
     start_demand_csv: str | None = None
@@ -78,7 +78,7 @@ class RunParams:
     @classmethod
     def from_argparse(cls, ns: argparse.Namespace) -> RunParams:
         return cls(
-            ecu=ns.ecu,
+            ecumenge_ziel_J=ns.ecumenge_ziel_J,
             periods_years=ns.periods,
             growth_csv=ns.growth,
             start_demand_csv=getattr(ns, "start_demand", None),
@@ -96,8 +96,8 @@ class RunParams:
 
     def apply_to_config(self, cfg: SimulationConfig) -> None:
         """Überträgt gesetzte Felder auf ``cfg`` (None = Konfiguration unverändert)."""
-        if self.ecu is not None:
-            cfg.ecu_per_year = self.ecu
+        if self.ecumenge_ziel_J is not None:
+            cfg.ecumenge_ziel_J = self.ecumenge_ziel_J
         if self.demand_noise_std is not None:
             cfg.demand_at_reference_price_log_noise_std = self.demand_noise_std
         if self.epsilon_noise_std is not None:
@@ -141,7 +141,7 @@ class RunParams:
     def from_web_query(
         cls,
         *,
-        ecu: float | None = None,
+        ecumenge_ziel_J: float | None = None,
         periods: int = 5,
         growth: str | None = None,
         start_demand: str | None = None,
@@ -154,7 +154,7 @@ class RunParams:
     ) -> RunParams:
         """Parameter wie bei FastAPI-``Query``-Defaults (fehlende Optionals = Konfig-Default)."""
         return cls(
-            ecu=ecu,
+            ecumenge_ziel_J=ecumenge_ziel_J,
             periods_years=periods,
             growth_csv=growth,
             start_demand_csv=start_demand,
@@ -176,8 +176,8 @@ class RunParams:
             return quote(str(v), safe="")
 
         items: list[tuple[str, str]] = [("periods", str(self.periods_years))]
-        if self.ecu is not None:
-            items.append(("ecu", str(self.ecu)))
+        if self.ecumenge_ziel_J is not None:
+            items.append(("ecumenge_ziel_J", str(self.ecumenge_ziel_J)))
         if self.growth_csv is not None:
             items.append(("growth", self.growth_csv))
         if self.start_demand_csv is not None:

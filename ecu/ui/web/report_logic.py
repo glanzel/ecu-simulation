@@ -29,11 +29,11 @@ STYLE_COLS_7_EQ: str = "grid-template-columns: repeat(7, minmax(0, 1fr))"
 
 REPORT_GAP: str = "gap-1"
 
-RUN_PARAMS_HDR: list[str] = ["EcuJ Soll", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
-YEARLY_ECU_HDR: list[str] = ["Jahr", "Σ p·VEJ-Ziel", "Slack", "Ø Auslast."]
-MONTH_HDR: list[str] = ["Mon", "p", "VEJ-Ist", "ges. Ecu", "Demand", "VET-Soll", "Ist / VET-Soll %"]
-YEAR_HDR: list[str] = ["Jahr", "Ø p", "Σ VEJ-Ist", "Σ Demand", "Σ ges. Ecu", "VEJ-Ziel", "Σ Ist / Ziel %"]
-BOUNDARY_SUMMARY_HDR: list[str] = ["Grenze", "Σ VEJ-Ist", "Σ Demand", "Σ ges. Ecu", "VEJ-Ziel", "Σ Ist / Ziel %"]
+RUN_PARAMS_HDR: list[str] = ["ecumenge_ziel_J", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
+YEARLY_ECU_HDR: list[str] = ["Jahr", "Ecu VEJ-Soll ges. (Jahr)", "Slack", "Ø Auslast."]
+MONTH_HDR: list[str] = ["Mon", "p", "VEJ-Ist", "Ecu VEJ-Ist", "Demand", "VET-Soll", "Ist / VET-Soll %"]
+YEAR_HDR: list[str] = ["Jahr", "Ø p", "Σ VEJ-Ist", "Σ Demand", "Σ Ecu VEJ-Ist", "VEJ-Ziel", "Σ Ist / Ziel %"]
+BOUNDARY_SUMMARY_HDR: list[str] = ["Grenze", "Σ VEJ-Ist", "Σ Demand", "Σ Ecu VEJ-Ist", "VEJ-Ziel", "Σ Ist / Ziel %"]
 
 
 def fmt_num(x: float, prec: int = 6) -> str:
@@ -73,7 +73,7 @@ def start_demand_one_line(start_demand_by_boundary: list[tuple[str, float]]) -> 
 
 
 def run_params_row(
-    ecu_per_year: float,
+    ecumenge_ziel_J: float,
     periods_years: int,
     budget_method: str,
     demand_noise_std: float,
@@ -81,7 +81,7 @@ def run_params_row(
     seed: int | None,
 ) -> list[str]:
     return [
-        fmt_num(ecu_per_year),
+        fmt_num(ecumenge_ziel_J),
         str(periods_years),
         budget_method,
         fmt_num(demand_noise_std),

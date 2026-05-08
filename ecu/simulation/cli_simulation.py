@@ -34,7 +34,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "start-demand: Anteil der VEJ in Prozent; ohne Option: Defaults je Grenze."
         ),
     )
-    p.add_argument("--ecu", type=float, default=None, help="EcuJ pro Jahr (Ziel Σ p·VEJ)")
+    p.add_argument(
+        "--ecu",
+        "--ecumenge-ziel-j",
+        type=float,
+        default=None,
+        dest="ecumenge_ziel_J",
+        help="ecumenge_ziel_J: langfristiges Jahresziel (Σ p·VEJ-Ziel)",
+    )
     p.add_argument(
         "--periods",
         type=int,
@@ -108,7 +115,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "ECU-Obergrenze für Σ p·c (kein Hochskalieren): "
             "'scale' = proportionale Drosselung nur wenn Rohkonsum die Grenze übersteigt; "
-            "'lagrange' = bei Überschreitung Cobb-Douglas-Aufteilung mit Budget = EcuJ. "
+            "'lagrange' = bei Überschreitung Cobb-Douglas-Aufteilung mit Budget = ecumenge_T (simulierte Monatsmenge). "
             "Standard: scale (Konfiguration)."
         ),
     )
@@ -194,42 +201,42 @@ def print_boundary_tables(results: list[PeriodResult]) -> None:
 
 
 def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) -> None:
-    """EcuJ (jährlich), monatliche Ausgabe Σ p·c, und jährliches VEJ-Bündel Σ p·VEJ (Preisrahmen)."""
+    """ECU-Jahresgrößen (ecumenge_*), monatliche Ausgabe ecu_ist_T, und Kontenrahmen Σ p·VEJ-Ziel."""
     w = 118
     print(f"\n{'─' * w}")
     print("  ECU-Menge und Kontenrahmen (alle Grenzen)")
     print(f"{'─' * w}")
     print(
         f"{'Mon':>4}  "
-        f"{'EcuJ Soll':>14}  "
-        f"{'EcuJ Ist*':>14}  "
-        f"{'Cap/Mon.':>12}  "
-        f"{'Σ p·VEJ-Ist':>14}  "
+        f"{'ecumenge_ziel_J':>15}  "
+        f"{'ecumenge_J':>15}  "
+        f"{'ecumenge_T':>12}  "
+        f"{'ecu_ist_T':>14}  "
         f"{'Σ p·VEJ-Ziel':>14}  "
         f"{'Slack*':>10}  "
         f"{'Ø Auslast.':>10}"
     )
     print("-" * w)
     for r in results:
-        slack_vej = r.bundle_ecu - r.ecu_per_year_soll
+        slack_vej = r.bundle_ecu - r.ecumenge_ziel_J
         print(
             f"{r.period:4d}  "
-            f"{r.ecu_per_year_soll:14.8g}  "
-            f"{r.ecu_per_year_ist:14.8g}  "
-            f"{r.ecu_ceiling_month:12.6g}  "
-            f"{r.ecu_expenditure:14.8g}  "
+            f"{r.ecumenge_ziel_J:14.8g}  "
+            f"{r.ecumenge_J:14.8g}  "
+            f"{r.ecumenge_T:12.6g}  "
+            f"{r.ecu_ist_T:14.8g}  "
             f"{r.bundle_ecu:14.8g}  "
             f"{slack_vej:10.6g}  "
             f"{r.mean_utilization:10.4f}"
         )
     print(
-        f"Legende · **EcuJ Soll** = konfiguriertes Jahresbudget (Preisnormierung Σ p·VEJ-Ziel). "
-        "**EcuJ Ist*** = wirksames Jahres-ECU am **Simulationsstart** (bei hoher Start-Auslastung ≥ Soll). "
-        "**Cap/Mon.** = monatliche Obergrenze für Σ p·VEJ-Ist (Ist/12 im ersten Monat, sonst Soll/12 bzw. weicher Pfad). "
-        "**Σ p·VEJ-Ist** = verbuchte ECU im Monat. "
+        f"Legende · **ecumenge_ziel_J** = konfiguriertes Jahresbudget (Preisnormierung Σ p·VEJ-Ziel). "
+        "**ecumenge_J*** = simulierte wirksame Jahres-ECU-Menge am **Simulationsstart** (bei hoher Start-Auslastung ≥ Ziel). "
+        "**ecumenge_T** = im Monat simuliert ausgegebene ECU-Menge (Obergrenze für Σ p·VEJ-Ist). "
+        "**ecu_ist_T** = verbuchte ECU im Monat (Σ p·VEJ-Ist). "
         "**Σ p·VEJ-Ziel** = hypothetischer Jahreswert zum Monatspreisvektor — "
         "Schattenpreis-/Bilanzlogik; **nicht** gleich der Monatsausgabe. "
-        "*Slack = Σ p·VEJ-Ziel − EcuJ Soll (nach Preisnormierung ~0, Rundung). "
+        "*Slack = Σ p·VEJ-Ziel − ecumenge_ziel_J (nach Preisnormierung ~0, Rundung). "
         "Ø Auslastung = Mittel aus VEJ-Ist / VET-Soll je Grenze (Verhältnis, kann > 1 bei Grenzüberschreitung)."
     )
 
@@ -246,8 +253,8 @@ def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> Non
     print(
         f"{'Jahr':>4}  "
         f"{'Monate':>6}  "
-        f"{'EcuJ (Jahr)':>14}  "
-        f"{'Σ p·VEJ-Ist (Jahr)':>18}  "
+        f"{'ecumenge_ziel_J':>15}  "
+        f"{'Σ ecu_ist_T (J)':>18}  "
         f"{'Σ p·VEJ-Ziel*':>14}  "
         f"{'Slack*':>10}  "
         f"{'Ø Auslast.':>10}"
@@ -256,22 +263,22 @@ def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> Non
     for y in sorted(by_y.keys()):
         rows = by_y[y]
         n = len(rows)
-        sum_pc = sum(x.ecu_expenditure for x in rows)
+        sum_pc = sum(x.ecu_ist_T for x in rows)
         last = rows[-1]
-        slack = last.bundle_ecu - last.ecu_per_year_soll
+        slack = last.bundle_ecu - last.ecumenge_ziel_J
         mean_u = sum(x.mean_utilization for x in rows) / float(n)
         print(
             f"{y:4d}  {n:6d}  "
-            f"{last.ecu_per_year_soll:14.8g}  "
+            f"{last.ecumenge_ziel_J:14.8g}  "
             f"{sum_pc:14.8g}  "
             f"{last.bundle_ecu:14.8g}  "
             f"{slack:10.6g}  "
             f"{mean_u:10.4f}"
         )
     print(
-        f"Legende · **Σ p·VEJ-Ist (Jahr)** = Summe der monatlichen Ausgaben (≤ EcuJ bei 12 Monaten pro Jahr). "
+        f"Legende · **Σ ecu_ist_T (J)** = Summe der monatlichen Ist-ECU (≤ ecumenge_ziel_J bei 12 Monaten pro Jahr). "
         f"**Σ p·VEJ-Ziel*** = Wert aus dem **letzten Monat** des Jahres (Preis-/Bilanzrahmen). "
-        f"*Slack* = Σ p·VEJ-Ziel − EcuJ (letzter Monat; nach Normierung ~0)."
+        f"*Slack* = Σ p·VEJ-Ziel − ecumenge_ziel_J (letzter Monat; nach Normierung ~0)."
     )
 
 
@@ -351,7 +358,7 @@ def print_warmup_diagnostic_table(results: list[PeriodResult]) -> None:
         return
     w = 78
     print(f"\n{'─' * w}")
-    print("  Warmup — Diagnose Σ p·VET-Soll (Monat) vs. EcuJ Soll/12 (ohne Σ p·VEJ-Ziel-Normierung)")
+    print("  Warmup — Diagnose Σ p·VET-Soll (Monat) vs. ecumenge_ziel_sim_J/12 (ohne Σ p·VEJ-Ziel-Normierung)")
     print(f"{'─' * w}")
     colw = (14, 16, 16, 14, 14)
     print(" ".join(f"{h:>{colw[i]}}" for i, h in enumerate(WARMUP_DIAG_TABLE_HEADER)))
@@ -360,7 +367,7 @@ def print_warmup_diagnostic_table(results: list[PeriodResult]) -> None:
         print(" ".join(f"{c:>{colw[i]}}" for i, c in enumerate(row)))
     print(
         "Legende: nur Monate mit Warmup-Preispfad (erste N Beobachtungen). "
-        "Δ Monat = Σ p·VET-Soll (Monat) − ecu_soll_effective/12; Δ Jahr = 12·Δ Monat."
+        "Δ Monat = Σ p·VET-Soll (Monat) − ecumenge_ziel_sim_J/12; Δ Jahr = 12·Δ Monat."
     )
 
 
@@ -385,7 +392,7 @@ def print_monthly_price_sums(results: list[PeriodResult]) -> None:
     prev_pc: float | None = None
     for r in results:
         sum_p = sum(r.prices[k] for k in BOUNDARY_KEYS)
-        pc = r.ecu_expenditure
+        pc = r.ecu_ist_T
         if prev_pc is None:
             dstr = "—"
         else:
@@ -419,10 +426,10 @@ def print_report(
         f"Lauf: {simulation_years} Jahr(e) = {n_mon} Monat(e) "
         f"(12 Datenpunkte pro Jahr; --periods = Jahre)"
     )
-    print(f"EcuJ Soll (Jahres-Referenz; Preisnormierung Σ p·VEJ-Ziel) = {cfg.ecu_per_year!r}")
+    print(f"ecumenge_ziel_J (Jahres-Referenz; Preisnormierung Σ p·VEJ-Ziel) = {cfg.ecumenge_ziel_J!r}")
     print(
         f"Konsum-Budgetabbildung: {cfg.consumption_budget_method.value} "
-        "(Σ p·VEJ-Ist ≤ monatlicher Decke: erstes Monat aus EcuJ-Ist/12, sonst Soll/12 bzw. weicher Pfad)"
+        "(Σ p·VEJ-Ist ≤ ecumenge_T: erster Monat aus ecumenge_J/12, sonst Ziel/12 bzw. weicher Pfad)"
     )
     print()
     print(
@@ -431,16 +438,16 @@ def print_report(
         "VET-Soll = Monats-Obergrenze (VEJ-Ziel/12) · ε = Preiselastizität (<0)."
     )
     print(
-        "Ausgaben pro Monat: **Σ p·VEJ-Ist ≤ monatliche Decke** (siehe Cap/Mon. und Σ p·VEJ-Ist). "
-        "Preislogik (jährlich): **EcuJ Soll ≤ Σ p_i·VEJ-Ziel_i** (volles Ziel-Bündel — kann über der Monatsausgabe liegen). "
+        "Ausgaben pro Monat: **Σ p·VEJ-Ist ≤ ecumenge_T** (siehe Tabelle Spalten ecumenge_T und ecu_ist_T). "
+        "Preislogik (jährlich): **ecumenge_ziel_J ≤ Σ p_i·VEJ-Ziel_i** (volles Ziel-Bündel — kann über der Monatsausgabe liegen). "
         "Isoelastische Kurve aus demand; Budgetabbildung in der Simulation."
     )
     print_monthly_price_sums(results)
     print_warmup_diagnostic_table(results)
-    print_yearly_ecu_table(results, cfg.ecu_per_year)
+    print_yearly_ecu_table(results, cfg.ecumenge_ziel_J)
     print_yearly_boundary_tables(results)
     print_boundary_tables(results)
-    print_ecu_accounting_table(results, cfg.ecu_per_year)
+    print_ecu_accounting_table(results, cfg.ecumenge_ziel_J)
     print()
     print("Tauschkurs (letzte Periode): ECU pro Einheit / Einheit pro ECU")
     last = results[-1]

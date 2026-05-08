@@ -24,6 +24,6 @@ class PriceConfig:
     # Prozent p pro Periode: im **harten** ECU-Pfad begrenzt dies ``Σ p·VEJ`` (``scale_percentual_to_ecu``).
     # Im **Warmup** (weniger als ``price_elasticity_warmup_months`` abgeschlossene Beobachtungen,
     # bei ``max_pct > 0``): nur pro-Grenzen-Klemme ``r_k`` ggü. ``p_alt``, **keine** Normierung
-    # ``Σ p·VEJ = EcuJ``; bei hoher Auslastung wie weicher Pfad Ratchet auf ``ecu_soll_effective``.
+    # ``Σ p·VEJ = ecumenge_ziel_J``; bei hoher Auslastung wie weicher Pfad Ratchet auf ``ecumenge_ziel_sim_J``.
     # Nach Warmup, **weicher** ECU-Pfad (Auslastung > 1+p/100): Ratchet + ``scale_budget_to_ecu``.
     max_shadow_bundle_scale_pct_per_period: float = 1.0

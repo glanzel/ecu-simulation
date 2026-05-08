@@ -18,14 +18,14 @@ def test_raw_initial_matches_weights_when_uniform_utilization() -> None:
         assert abs(raw_u[k] - raw_w[k]) < 1e-9, (k, raw_u[k], raw_w[k])
 
 
-def test_ecu_per_year_ist_not_below_soll_when_overloaded_start() -> None:
+def test_ecumenge_J_not_below_ecumenge_ziel_when_overloaded_start() -> None:
     from ecu.simulation.config import SimulationConfig
-    from ecu.simulation.simulation import ecu_per_year_ist_from_start, run_simulation
+    from ecu.simulation.simulation import ecumenge_J_from_start, run_simulation
 
-    cfg = SimulationConfig(ecu_per_year=100.0, random_seed=0, start_demand_of_vej={k: 1.2 for k in BOUNDARY_KEYS})
+    cfg = SimulationConfig(ecumenge_ziel_J=100.0, random_seed=0, start_demand_of_vej={k: 1.2 for k in BOUNDARY_KEYS})
     frac = cfg.resolved_start_demand()
-    ist = ecu_per_year_ist_from_start(frac, cfg.ecu_per_year)
-    assert ist >= cfg.ecu_per_year
+    ist = ecumenge_J_from_start(frac, cfg.ecumenge_ziel_J)
+    assert ist >= cfg.ecumenge_ziel_J
     results = run_simulation(cfg, months=1)
-    assert results[0].ecu_per_year_ist == ist
-    assert results[0].ecu_ceiling_month == ist / 12.0
+    assert results[0].ecumenge_J == ist
+    assert results[0].ecumenge_T == ist / 12.0

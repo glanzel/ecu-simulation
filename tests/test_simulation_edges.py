@@ -22,32 +22,32 @@ def _audit(title: str, results) -> None:
 
 
 def _assert_ecu_monthly_cap(results) -> None:
-    """Verbuchte ECU pro Monat darf die wirksame Monatsdecke nicht übersteigen."""
+    """Verbuchte ECU pro Monat darf die simulierte Monatsmenge ``ecumenge_T`` nicht übersteigen."""
     for r in results:
-        assert r.ecu_expenditure <= r.ecu_ceiling_month + TOL, (
+        assert r.ecu_ist_T <= r.ecumenge_T + TOL, (
             r.period,
-            r.ecu_expenditure,
-            r.ecu_ceiling_month,
+            r.ecu_ist_T,
+            r.ecumenge_T,
         )
 
 
 def test_ecuj_bundle_at_least_floor():
     """Kontenrahmen: EcuJ ≤ Σ p_i·VEJ_i (Slack erlaubt), bei überall f_i ≤ 1."""
     cfg = SimulationConfig(
-        ecu_per_year=1.0,
+        ecumenge_ziel_J=1.0,
         random_seed=1,
         start_demand_of_vej={k: 0.45 for k in BOUNDARY_KEYS},
     )
     results = run_simulation(cfg, months=2)
     _audit("test_ecuj_bundle_at_least_floor", results)
     for r in results:
-        assert r.bundle_ecu + TOL >= r.ecu_per_year_soll
+        assert r.bundle_ecu + TOL >= r.ecumenge_ziel_J
     _assert_ecu_monthly_cap(results)
 
 
 def test_demand_never_exceeds_vej_default_config():
     """Standardparameter: gleichgewichtige Nachfrage bleibt unter VEJ."""
-    cfg = SimulationConfig(ecu_per_year=1.0, random_seed=2)
+    cfg = SimulationConfig(ecumenge_ziel_J=1.0, random_seed=2)
     annual_co2 = 1.03**12
     g = {k: 1.0 for k in BOUNDARY_KEYS}
     g["co2"] = annual_co2
@@ -59,7 +59,7 @@ def test_demand_never_exceeds_vej_default_config():
 def test_concentration_mostly_one_boundary():
     """Sehr wenig Basisnachfrage auf zwei Grenzen — aktive Grenze bleibt ≤ VEJ."""
     cfg = SimulationConfig(
-        ecu_per_year=1.0,
+        ecumenge_ziel_J=1.0,
         random_seed=3,
         start_demand_of_vej={
             "co2": 0.85,
@@ -74,7 +74,7 @@ def test_concentration_mostly_one_boundary():
 def test_high_start_demand_still_bounded():
     """Hohe Basisnachfrage: Regler soll Preise treiben, Nachfrage ≤ VEJ."""
     cfg = SimulationConfig(
-        ecu_per_year=1.0,
+        ecumenge_ziel_J=1.0,
         random_seed=4,
         start_demand_of_vej={k: 0.95 for k in BOUNDARY_KEYS},
     )
