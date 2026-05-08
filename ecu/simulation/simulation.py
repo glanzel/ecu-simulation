@@ -203,7 +203,8 @@ def run_simulation(
 
     ecumenge_ziel_J = cfg.ecumenge_ziel_J
     ecumenge_J = ecumenge_J_from_start(frac, ecumenge_ziel_J)
-    reference_shadow_price = reference_shadow_prices_for_demand(cfg, vej_ziel, ecumenge_ziel_J)
+    ecumenge_budget_J = max(ecumenge_ziel_J, ecumenge_J)
+    reference_shadow_price = reference_shadow_prices_for_demand(cfg, vej_ziel, ecumenge_budget_J)
 
     timeline = ConsumptionTimeline(
         ecumenge_ziel_J=ecumenge_ziel_J,

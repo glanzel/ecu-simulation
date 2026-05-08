@@ -152,44 +152,46 @@ def scale_percentual_to_ecu(
 
 
 def initial_shadow_prices_for_ecu(
-    vej_ziel: dict[str, float], ecumenge_ziel_J: float, fraction_of_vej_ziel: dict[str, float]
+    vej_ziel: dict[str, float], ecumenge_budget_J: float, fraction_of_vej_ziel: dict[str, float]
 ) -> dict[str, float]:
     """
     Start-Schattenpreise: Rohpreise aus Auslastungs-Proxy ``fraction_of_vej_ziel`` (je ``u_i``),
     Normierung mit ``scale_to_ecu_budget_at_vej_ziel_fractions``, sodass
-    ``Σ p_i · f_i · VEJ-Ziel_i = ecumenge_ziel_J`` — bei ``p = p_ref`` kostet der
-    Referenzkonsum ``f_i · VET-Soll_i`` genau den monatlichen ECU-Zuschlag ``ecumenge_ziel_J/12``.
+    ``Σ p_i · f_i · VEJ-Ziel_i = ecumenge_budget_J`` — bei ``p = p_ref`` kostet der
+    Referenzkonsum ``f_i · VET-Soll_i`` genau ``ecumenge_budget_J/12`` pro Monat.
+    ``ecumenge_budget_J`` ist die wirksame Jahres-ECU-Menge (typ. ``ecumenge_ziel_sim_J`` =
+    ``max(ecumenge_ziel_J, ecumenge_J)`` am Laufstart), nicht nur das konfigurierte Ziel.
     """
     raw = raw_initial_shadow_prices_from_utilization(
-        vej_ziel, ecumenge_ziel_J, fraction_of_vej_ziel, initial_weights_uniform(len(BOUNDARY_KEYS))
+        vej_ziel, ecumenge_budget_J, fraction_of_vej_ziel, initial_weights_uniform(len(BOUNDARY_KEYS))
     )
-    return scale_to_ecu_budget_at_vej_ziel_fractions(raw, vej_ziel, ecumenge_ziel_J, fraction_of_vej_ziel)
+    return scale_to_ecu_budget_at_vej_ziel_fractions(raw, vej_ziel, ecumenge_budget_J, fraction_of_vej_ziel)
 
 
 def reference_shadow_prices_for_demand(
-    cfg: SimulationConfig, vej_ziel: dict[str, float], ecumenge_ziel_J: float
+    cfg: SimulationConfig, vej_ziel: dict[str, float], ecumenge_budget_J: float
 ) -> dict[str, float]:
     """
-    Referenzpreise für die Nachfragefunktion: Start-Schattenpreise, dann ``resolved_p_ref``.
+    Referenzpreise für die Nachfragefunktion: Start-Schattenpreise (Normierung auf ``ecumenge_budget_J``), dann ``resolved_p_ref``.
     """
-    initial = initial_shadow_prices_for_ecu(vej_ziel, ecumenge_ziel_J, cfg.resolved_start_demand())
+    initial = initial_shadow_prices_for_ecu(vej_ziel, ecumenge_budget_J, cfg.resolved_start_demand())
     return cfg.resolved_p_ref(initial)
 
 
 def scale_to_ecu_budget_at_vej_ziel_fractions(
-    prices: dict[str, float], vej_ziel: dict[str, float], ecumenge_ziel_J: float, fraction_of_vej_ziel: dict[str, float]
+    prices: dict[str, float], vej_ziel: dict[str, float], ecumenge_budget_J: float, fraction_of_vej_ziel: dict[str, float]
 ) -> dict[str, float]:
     """
     Gemeinsamer Faktor auf allen Preisen, sodass
-    ``Σ_i p_i · f_i · VEJ-Ziel_i = ecumenge_ziel_J`` (Referenzkonsum zu ``f_i`` füllt
-    monatlich ``Σ p·vej_ist = ecumenge_ziel_J/12`` am Referenzpreisvektor).
+    ``Σ_i p_i · f_i · VEJ-Ziel_i = ecumenge_budget_J`` (Referenzkonsum zu ``f_i`` füllt
+    monatlich ``Σ p·vej_ist = ecumenge_budget_J/12`` am Referenzpreisvektor).
 
     Eine exakte Normierung (Startpreise).
     """
     bundle_total = bundle_value_at_vej_ziel_fractions(prices, vej_ziel, fraction_of_vej_ziel)
     if bundle_total <= 0:
         raise ValueError("Summe p·VEJ·f muss positiv sein.")
-    scale_factor = ecumenge_ziel_J / bundle_total
+    scale_factor = ecumenge_budget_J / bundle_total
     return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
 
@@ -374,7 +376,7 @@ def advance_shadow_prices(
     """
     Legt die Schattenpreise fest, **bevor** in dieser Periode konsumiert wird.
 
-    - **Leere Timeline** (erster Monat): ``initial_shadow_prices_for_ecu`` (``Σ p·f·VEJ = ecumenge_ziel_J``).
+    - **Leere Timeline** (erster Monat): ``initial_shadow_prices_for_ecu`` (``Σ p·f·VEJ =`` wirksames Jahresbudget, ``timeline.ecumenge_ziel_sim_J`` falls gesetzt, sonst ``ecumenge_ziel_J``).
     - **Sonst**: Rohpreise aus ``_raw_shadow_prices_from_timeline``.
     - **Warmup** (``len(timeline) < price_elasticity_warmup_months`` und ``max_pct > 0``): nur
       ``_clamp_shadow_prices_vs_last_by_utilization_share`` auf den Rohpreisen (keine Normierung auf
@@ -389,8 +391,13 @@ def advance_shadow_prices(
     """
     if len(timeline) == 0:
         timeline.ecumenge_T_override = None
+        budget_J = (
+            timeline.ecumenge_ziel_sim_J
+            if timeline.ecumenge_ziel_sim_J > 0.0
+            else timeline.ecumenge_ziel_J
+        )
         timeline.prices_for_next_consumption = initial_shadow_prices_for_ecu(
-            vej_ziel, timeline.ecumenge_ziel_J, fraction_of_vej_ziel
+            vej_ziel, budget_J, fraction_of_vej_ziel
         )
         return timeline
 

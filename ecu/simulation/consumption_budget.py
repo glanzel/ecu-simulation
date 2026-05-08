@@ -6,8 +6,8 @@ wird der Konsum angepasst (nicht nach oben auf E aufgefüllt).
 Zwei Varianten bei Überschreitung:
 
 - **scale**: ``c_i = (E / Σ p·c̃) · c̃_i`` (einheitliche Drosselung).
-- **lagrange**: Gewichte ``w_i = max(c̃_i, ε)``; Ausgaben wie Cobb-Douglas mit Budget ``E``:
-  ``p_i c_i = E · w_i / Σ w_k``.
+- **lagrange**: EUKLIDISCH nächstliegender zulässiger Konsum zu ``c̃`` unter ``Σ p·c = E``, ``c ≥ 0``:
+  ``c_i = max(0, c̃_i − λ p_i)`` mit ``λ`` aus Bisektion auf ``Σ p·c = E``.
 """
 
 from __future__ import annotations
@@ -26,10 +26,7 @@ class ConsumptionBudgetMethod(str, Enum):
     """Überschreitung: proportionale Skalierung auf ``Σ p·c = E``."""
 
     LAGRANGE = "lagrange"
-    """Überschreitung: ``c_i = E · w_i / (p_i · Σ w_k)`` mit ``w_i = max(c̃_i, ε)``."""
-
-
-_MIN_WEIGHT = 1e-30
+    """Überschreitung: ``c`` minimiert ``Σ (c_i − c̃_i)²`` bei ``Σ p·c = E``, ``c ≥ 0`` (Projektion)."""
 
 
 def bundle_expenditure(
@@ -62,7 +59,7 @@ def apply_consumption_budget(
     if method == ConsumptionBudgetMethod.SCALE:
         return _apply_scale_when_over(raw_vej_ist, prices, ecumenge_T, spend)
     if method == ConsumptionBudgetMethod.LAGRANGE:
-        return _apply_lagrange_weights(raw_vej_ist, prices, ecumenge_T)
+        return _apply_lagrange_project_demands(raw_vej_ist, prices, ecumenge_T)
     raise ValueError(f"unbekannte ConsumptionBudgetMethod: {method!r}")
 
 
@@ -76,17 +73,38 @@ def _apply_scale_when_over(
     return {k: raw_vej_ist[k] * scale for k in BOUNDARY_KEYS}
 
 
-def _apply_lagrange_weights(
+def _expenditure_at_lambda(
     raw_vej_ist: dict[str, float],
     prices: dict[str, float],
-    ecumenge_T: float,
-) -> dict[str, float]:
-    weights = {k: max(raw_vej_ist[k], _MIN_WEIGHT) for k in BOUNDARY_KEYS}
-    w_sum = sum(weights.values())
-    out: dict[str, float] = {}
+    lam: float,
+) -> float:
+    """``Σ_k p_k · max(0, c̃_k − λ p_k)`` — fällt monoton in ``λ``."""
+    out = 0.0
     for k in BOUNDARY_KEYS:
         pk = prices[k]
         if pk <= 0:
             raise ValueError(f"Schattenpreis für {k!r} muss positiv sein.")
-        out[k] = ecumenge_T * weights[k] / (pk * w_sum)
+        out += pk * max(0.0, raw_vej_ist[k] - lam * pk)
     return out
+
+
+def _apply_lagrange_project_demands(
+    raw_vej_ist: dict[str, float],
+    prices: dict[str, float],
+    ecumenge_T: float,
+) -> dict[str, float]:
+    """Minimiert ``Σ (c_k − c̃_k)²`` bei ``Σ p·c = E``, ``c_k ≥ 0`` → ``c_k = max(0, c̃_k − λ p_k)``."""
+    hi = 1.0
+    while _expenditure_at_lambda(raw_vej_ist, prices, hi) > ecumenge_T + _BUDGET_TOL:
+        hi *= 2.0
+        if hi > 1e100:
+            raise ValueError("Lagrange-Projektion: keine gültige λ-Obergrenze.")
+    lo = 0.0
+    for _ in range(90):
+        mid = 0.5 * (lo + hi)
+        if _expenditure_at_lambda(raw_vej_ist, prices, mid) > ecumenge_T:
+            lo = mid
+        else:
+            hi = mid
+    lam = 0.5 * (lo + hi)
+    return {k: max(0.0, raw_vej_ist[k] - lam * prices[k]) for k in BOUNDARY_KEYS}
