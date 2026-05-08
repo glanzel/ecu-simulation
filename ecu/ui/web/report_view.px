@@ -2,7 +2,11 @@ from pyjsx import JSX, jsx
 from pyjsx.jsx import HTMLDontEscape
 
 import ecu.ui.web.report_logic as RL
-from ecu.simulation.report_aggregates import BoundaryYearSummary, YearlyEcuSummary
+from ecu.simulation.report_aggregates import (
+    BoundaryYearSummary,
+    YearlyEcuSummary,
+    WARMUP_DIAG_TABLE_HEADER,
+)
 from ecu.ui.web.layout import site_head, site_header_bar
 from ecu.ui.web.view_model import BoundarySection, MonthRow, YearDetail
 
@@ -102,7 +106,8 @@ def DataGrid(
 
 
 def RunParamsBlock(
-    ecu_per_year: float,
+    ecu_per_year_soll: float,
+    ecu_per_year_ist: float,
     periods_years: int,
     n_months: int,
     budget_method: str,
@@ -113,13 +118,23 @@ def RunParamsBlock(
     seed: int | None,
     children: list | None = None,
 ) -> JSX:
-    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und Start-Nachfrage (VEJ-Anteil). ``n_months`` für API-Kompatibilität."""
+    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und Start-Nachfrage (Anteil VEJ-Ziel). ``n_months`` für API-Kompatibilität."""
     _ = (children, n_months)
     row1 = RL.run_params_row(
-        ecu_per_year, periods_years, budget_method, demand_noise_std, epsilon_noise_std, seed
+        ecu_per_year_soll, periods_years, budget_method, demand_noise_std, epsilon_noise_std, seed
     )
     gline = RL.growth_one_line(growth_by_boundary)
     sdline = RL.start_demand_one_line(start_demand_by_boundary)
+    ist_note = (
+        <div class="border-t border-slate-100 bg-report-zebra px-2 py-1 text-[11px] text-slate-600 leading-snug">
+            <span class="font-medium text-slate-500">EcuJ Soll / Ist (Start)</span>
+            {": "}
+            {RL.fmt_num(ecu_per_year_soll, prec=6)}
+            {" / "}
+            {RL.fmt_num(ecu_per_year_ist, prec=6)}
+            {" — Ist = wirksames Jahres-ECU für die erste Monatsdecke."}
+        </div>
+    )
     return (
         <section class="not-prose mb-6">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Laufparameter</p>
@@ -132,13 +147,14 @@ def RunParamsBlock(
                     report_style={True}
                     extra_classes="my-0 border-0 shadow-none"
                 />
+                {ist_note}
                 <div class="border-t border-slate-100 bg-white px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
                     <span class="font-medium text-slate-500">Wachstum (Index/Jahr, 100 = Basis)</span>
                     {": "}
                     {gline}
                 </div>
                 <div class="border-t border-slate-100 bg-white px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
-                    <span class="font-medium text-slate-500">Start-Nachfrage (% VEJ)</span>
+                    <span class="font-medium text-slate-500">Start-Nachfrage (% VEJ-Ziel)</span>
                     {": "}
                     {sdline}
                 </div>
@@ -147,8 +163,39 @@ def RunParamsBlock(
     )
 
 
+def WarmupDiagBlock(rows: list[list[str]] | None, children: list | None = None) -> JSX:
+    """Warmup-Monate: ``Σ p·VET`` vs. EcuJ Soll/12 ohne Preis-Normierung auf Jahresbudget."""
+    _ = children
+    if not rows:
+        return <span />
+    return (
+        <section class="not-prose mb-6">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                Warmup — Schattenpreise (ohne Σ p·VEJ-Ziel = EcuJ)
+            </p>
+            <div class="border border-slate-200/80 bg-white shadow-sm">
+                <DataGrid
+                    n_cols={5}
+                    headers={WARMUP_DIAG_TABLE_HEADER}
+                    rows={rows}
+                    flush={False}
+                    report_style={True}
+                    extra_classes="my-0 border-0 shadow-none"
+                    style={RL.STYLE_COLS_5_EQ}
+                />
+            </div>
+            <p class="text-[10px] text-slate-500 mt-1.5 leading-snug not-prose">
+                Nur in den ersten N Monaten (Konfiguration price_elasticity_warmup_months): pro Grenze
+                die Staffel r_k gegenüber dem Vormonatspreis; kein Angleichen von Summe p·VEJ-Ziel an das
+                wirksame Jahres-Soll. Spalten: Monatswert Summe p·VET-Soll, Referenz ecu_soll_effective/12
+                (nach ggf. Ratchet), Abweichung Monat und hochgerechnet Jahr (12·Δ Monat).
+            </p>
+        </section>
+    )
+
+
 def GlobalYearlyEcuBlock(rows: list[YearlyEcuSummary], children: list | None = None) -> JSX:
-    """Pro Jahr: Preis-/Kontenrahmen (Σ p·VEJ, Slack) und mittlere Auslastung."""
+    """Pro Jahr: Preis-/Kontenrahmen (Σ p·VEJ-Ziel, Slack) und mittlere Auslastung."""
     _ = children
     rrows = RL.yearly_ecu_table_rows(rows)
     if rrows is None:
@@ -168,9 +215,9 @@ def GlobalYearlyEcuBlock(rows: list[YearlyEcuSummary], children: list | None = N
                     extra_classes="my-0 border-0 shadow-none"
                 />
                 <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-500 leading-snug">
-                    Σ p·VEJ und Slack = ECU-Wert des planetaren Rahmens (letzter Monat); Slack = Σ p·VEJ − EcuJ
-                    (nach Preisnormierung ~0). Ø Auslast. = Mittel aus Konsum/VET je Grenze (kann {">"} 1) — Mengen an der
-                    Monatsgrenze VET, nicht dasselbe wie Slack.
+                    Σ p·VEJ-Ziel und Slack = ECU-Wert des planetaren Rahmens (letzter Monat); Slack = Σ p·VEJ-Ziel − EcuJ
+                    (nach Preisnormierung ~0). Ø Auslast. = Mittel aus VEJ-Ist / VET-Soll je Grenze (kann {">"} 1) — Mengen an der
+                    Monatsgrenze VET-Soll, nicht dasselbe wie Slack.
                 </div>
             </div>
         </section>
@@ -263,21 +310,21 @@ def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Diagramme</p>
             <div class="flex flex-col gap-8 border border-slate-200/80 bg-white shadow-sm p-4">
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">Gesamtauslastung (Mittel Konsum / VET)</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">Gesamtauslastung (Mittel VEJ-Ist / VET-Soll)</p>
                     <div class="relative h-64 w-full min-h-[200px]">
                         <canvas id="chart-mean-utilization"></canvas>
                     </div>
                 </div>
                 <div>
                     <p class="text-xs font-medium text-slate-700 mb-2">
-                        Gesamter Kontenrahmen (ECU/Monat): Σ p·VEJ und ges. Ecu
+                        Gesamter Kontenrahmen (ECU/Monat): Σ p·VEJ-Ziel und ges. Ecu
                     </p>
                     <div class="relative h-64 w-full min-h-[200px]">
                         <canvas id="chart-ecu-totals"></canvas>
                     </div>
                 </div>
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">Auslastung pro Grenze (Konsum / VET, %)</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">Auslastung pro Grenze (VEJ-Ist / VET-Soll, %)</p>
                     <div class="relative h-72 w-full min-h-[220px]">
                         <canvas id="chart-pct-vet-by-boundary"></canvas>
                     </div>
@@ -329,7 +376,8 @@ def BoundaryBlock(section: BoundarySection, children: list | None = None) -> JSX
 def report_page(
     sections: list[BoundarySection],
     yearly_ecu: list[YearlyEcuSummary],
-    ecu_per_year: float,
+    ecu_per_year_soll: float,
+    ecu_per_year_ist: float,
     periods_years: int,
     n_months: int,
     budget_method: str,
@@ -339,6 +387,7 @@ def report_page(
     epsilon_noise_std: float,
     seed: int | None,
     chart_data_json: str,
+    warmup_diag_rows: list[list[str]] | None = None,
     children: list | None = None,
 ) -> JSX:
     _ = children
@@ -349,7 +398,8 @@ def report_page(
                 {site_header_bar()}
                 <main class="max-w-5xl mx-auto px-4 py-5">
                     <RunParamsBlock
-                        ecu_per_year={ecu_per_year}
+                        ecu_per_year_soll={ecu_per_year_soll}
+                        ecu_per_year_ist={ecu_per_year_ist}
                         periods_years={periods_years}
                         n_months={n_months}
                         budget_method={budget_method}
@@ -360,13 +410,14 @@ def report_page(
                         seed={seed}
                     />
                     <ChartsSection chart_data_json={chart_data_json} />
+                    <WarmupDiagBlock rows={warmup_diag_rows} />
                     <GlobalYearlyEcuBlock rows={yearly_ecu} />
                     <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1 not-prose">
                         Grenzen
                     </p>
                     <p class="text-[10px] text-slate-500 mb-3 not-prose leading-snug">
                         Spalte Demand = Referenznachfrage (demand_at_reference_price), gleiche Einheit wie
-                        consumption / Monat. Spalte ges. Ecu = p·c (verbuchte ECU an der Grenze bzw. summiert).
+                        VEJ-Ist / Monat. Spalte ges. Ecu = p·VEJ-Ist (verbuchte ECU an der Grenze bzw. summiert).
                     </p>
                     <div class="not-prose flex flex-col gap-3">
                         {[<BoundaryBlock section={sec} /> for sec in sections]}
@@ -384,6 +435,7 @@ __all__ = [
     "GlobalYearlyEcuBlock",
     "MonthGrid",
     "RunParamsBlock",
+    "WarmupDiagBlock",
     "YearBlock",
     "YearHeaderRow",
     "report_page",

@@ -61,7 +61,7 @@
           labels: labels,
           datasets: [
             {
-              label: "Mittlere Auslastung (Ø Konsum / VET)",
+              label: "Mittlere Auslastung (Ø VEJ-Ist / VET-Soll)",
               data: payload.meanUtilization,
               borderColor: colors[0],
               backgroundColor: "rgba(13,148,136,0.08)",
@@ -82,7 +82,7 @@
           labels: labels,
           datasets: [
             {
-              label: "Σ p·VEJ (Rahmen, ECU/Monat)",
+              label: "Σ p·VEJ-Ziel (Rahmen, ECU/Monat)",
               data: payload.bundleEcu,
               borderColor: colors[1],
               tension: 0.15,
@@ -98,6 +98,16 @@
               fill: false,
               pointRadius: 0,
               borderWidth: 2,
+            },
+            {
+              label: "ECU-Decke (Monat)",
+              data: payload.ecuCeilingMonth,
+              borderColor: colors[3],
+              tension: 0.15,
+              fill: false,
+              pointRadius: 0,
+              borderWidth: 2,
+              borderDash: [4, 3],
             },
           ],
         },
@@ -123,7 +133,7 @@
       new Chart(c3, {
         type: "line",
         data: { labels: labels, datasets: ds3 },
-        options: baseLineOptions("Konsum / VET (%)"),
+        options: baseLineOptions("VEJ-Ist / VET-Soll (%)"),
       });
     }
     if (c4 && payload.priceSeries) {

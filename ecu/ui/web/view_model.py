@@ -21,11 +21,11 @@ from ecu.simulation.simulation import PeriodResult
 class MonthRow:
     period: int
     price: float
-    consumption: float
+    vej_ist: float
     pc: float
     demand: float
-    vet: float
-    pct_vet: float
+    vet_soll: float
+    pct_vet_soll: float
 
 
 @dataclass
@@ -49,19 +49,19 @@ def _month_rows_for_boundary(
     rows: list[MonthRow] = []
     for r in results:
         p = r.prices[boundary_key]
-        c = r.consumption[boundary_key]
-        v = r.vet[boundary_key]
+        c = r.vej_ist[boundary_key]
+        v = r.vet_soll[boundary_key]
         pc = p * c
         pct = (100.0 * c / v) if v > 0 else float("nan")
         rows.append(
             MonthRow(
                 period=r.period,
                 price=p,
-                consumption=c,
+                vej_ist=c,
                 pc=pc,
                 demand=r.demand_at_reference_price[boundary_key],
-                vet=v,
-                pct_vet=pct,
+                vet_soll=v,
+                pct_vet_soll=pct,
             )
         )
     return rows

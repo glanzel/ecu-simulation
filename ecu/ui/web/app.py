@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from ecu.logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR
 from ecu.logic.planetary_constants import default_start_demand_by_key
 from ecu.simulation.config import default_config
-from ecu.simulation.report_aggregates import yearly_ecu_summaries
+from ecu.simulation.report_aggregates import yearly_ecu_summaries, warmup_diagnostic_table_rows
 from ecu.simulation.run_params import RunParams
 from ecu.simulation.simulation import run_simulation
 from ecu.ui.web.chart_payload import chart_data_json_for_report
@@ -90,6 +90,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
     seed: int | None = Query(None),
     consumption_budget: str | None = Query(None),
     price_max_bundle_scale_pct: float | None = Query(None),
+    price_elasticity_warmup_months: int | None = Query(None, ge=0, le=240),
 ) -> HTMLResponse:
     params = RunParams.from_web_query(
         ecu=ecu,
@@ -101,6 +102,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
         seed=seed,
         consumption_budget=consumption_budget,
         price_max_bundle_scale_pct=price_max_bundle_scale_pct,
+        price_elasticity_warmup_months=price_elasticity_warmup_months,
     )
     cfg = default_config()
     try:
@@ -123,7 +125,8 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
     page = report_page(
         sections=sections,
         yearly_ecu=yearly_ecu_summaries(results),
-        ecu_per_year=last.ecu_per_year,
+        ecu_per_year_soll=last.ecu_per_year_soll,
+        ecu_per_year_ist=last.ecu_per_year_ist,
         periods_years=params.periods_years,
         n_months=len(results),
         budget_method=cfg.consumption_budget_method.value,
@@ -133,6 +136,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
         epsilon_noise_std=cfg.epsilon_log_noise_std,
         seed=cfg.random_seed,
         chart_data_json=chart_data_json_for_report(results),
+        warmup_diag_rows=warmup_diagnostic_table_rows(results),
     )
     return HTMLResponse(
         str(page),

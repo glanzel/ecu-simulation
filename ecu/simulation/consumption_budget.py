@@ -34,14 +34,14 @@ _MIN_WEIGHT = 1e-30
 
 def bundle_expenditure(
     prices: dict[str, float],
-    consumption: dict[str, float],
+    vej_ist: dict[str, float],
 ) -> float:
-    """``Σ_i p_i · consumption_i`` (verbuchte ECU im Abrechnungszeitraum, hier pro Monat)."""
-    return sum(prices[k] * consumption[k] for k in BOUNDARY_KEYS)
+    """``Σ_i p_i · vej_ist_i`` (verbuchte ECU im Abrechnungszeitraum, hier pro Monat)."""
+    return sum(prices[k] * vej_ist[k] for k in BOUNDARY_KEYS)
 
 
 def apply_consumption_budget(
-    raw_consumption: dict[str, float],
+    raw_vej_ist: dict[str, float],
     prices: dict[str, float],
     ecu_ceiling: float,
     method: ConsumptionBudgetMethod,
@@ -52,36 +52,36 @@ def apply_consumption_budget(
     """
     if ecu_ceiling <= 0:
         raise ValueError("ecu_ceiling muss positiv sein.")
-    spend = bundle_expenditure(prices, raw_consumption)
+    spend = bundle_expenditure(prices, raw_vej_ist)
     if spend <= ecu_ceiling + _BUDGET_TOL:
-        return {k: raw_consumption[k] for k in BOUNDARY_KEYS}
+        return {k: raw_vej_ist[k] for k in BOUNDARY_KEYS}
     if spend <= 0:
         raise ValueError(
             "Σ p·c̃ übersteigt die ECU-Obergrenze, ist aber nicht positiv — ungültige Rohdaten."
         )
     if method == ConsumptionBudgetMethod.SCALE:
-        return _apply_scale_when_over(raw_consumption, prices, ecu_ceiling, spend)
+        return _apply_scale_when_over(raw_vej_ist, prices, ecu_ceiling, spend)
     if method == ConsumptionBudgetMethod.LAGRANGE:
-        return _apply_lagrange_weights(raw_consumption, prices, ecu_ceiling)
+        return _apply_lagrange_weights(raw_vej_ist, prices, ecu_ceiling)
     raise ValueError(f"unbekannte ConsumptionBudgetMethod: {method!r}")
 
 
 def _apply_scale_when_over(
-    raw_consumption: dict[str, float],
+    raw_vej_ist: dict[str, float],
     prices: dict[str, float],
     ecu_ceiling: float,
     spend: float,
 ) -> dict[str, float]:
     scale = ecu_ceiling / spend
-    return {k: raw_consumption[k] * scale for k in BOUNDARY_KEYS}
+    return {k: raw_vej_ist[k] * scale for k in BOUNDARY_KEYS}
 
 
 def _apply_lagrange_weights(
-    raw_consumption: dict[str, float],
+    raw_vej_ist: dict[str, float],
     prices: dict[str, float],
     ecu_ceiling: float,
 ) -> dict[str, float]:
-    weights = {k: max(raw_consumption[k], _MIN_WEIGHT) for k in BOUNDARY_KEYS}
+    weights = {k: max(raw_vej_ist[k], _MIN_WEIGHT) for k in BOUNDARY_KEYS}
     w_sum = sum(weights.values())
     out: dict[str, float] = {}
     for k in BOUNDARY_KEYS:

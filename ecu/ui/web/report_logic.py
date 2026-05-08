@@ -29,11 +29,11 @@ STYLE_COLS_7_EQ: str = "grid-template-columns: repeat(7, minmax(0, 1fr))"
 
 REPORT_GAP: str = "gap-1"
 
-RUN_PARAMS_HDR: list[str] = ["EcuJ", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
-YEARLY_ECU_HDR: list[str] = ["Jahr", "Σ p·VEJ", "Slack", "Ø Auslast."]
-MONTH_HDR: list[str] = ["Mon", "p", "consumption", "ges. Ecu", "Demand", "VET", "c/VET %"]
-YEAR_HDR: list[str] = ["Jahr", "Ø p", "Σ consumption", "Σ Demand", "Σ ges. Ecu", "VEJ", "Σc/VEJ %"]
-BOUNDARY_SUMMARY_HDR: list[str] = ["Grenze", "Σ consumption", "Σ Demand", "Σ ges. Ecu", "VEJ", "Σc/VEJ %"]
+RUN_PARAMS_HDR: list[str] = ["EcuJ Soll", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
+YEARLY_ECU_HDR: list[str] = ["Jahr", "Σ p·VEJ-Ziel", "Slack", "Ø Auslast."]
+MONTH_HDR: list[str] = ["Mon", "p", "VEJ-Ist", "ges. Ecu", "Demand", "VET-Soll", "Ist / VET-Soll %"]
+YEAR_HDR: list[str] = ["Jahr", "Ø p", "Σ VEJ-Ist", "Σ Demand", "Σ ges. Ecu", "VEJ-Ziel", "Σ Ist / Ziel %"]
+BOUNDARY_SUMMARY_HDR: list[str] = ["Grenze", "Σ VEJ-Ist", "Σ Demand", "Σ ges. Ecu", "VEJ-Ziel", "Σ Ist / Ziel %"]
 
 
 def fmt_num(x: float, prec: int = 6) -> str:
@@ -67,7 +67,7 @@ def growth_one_line(growth_by_boundary: list[tuple[str, float]]) -> str:
 
 
 def start_demand_one_line(start_demand_by_boundary: list[tuple[str, float]]) -> str:
-    """``v`` ist Anteil 0…1; Anzeige als Prozent der VEJ."""
+    """``v`` ist Anteil 0…1; Anzeige als Prozent des VEJ-Ziels."""
     parts = [f"{k} {fmt_num(v * 100.0, prec=2)} %" for k, v in start_demand_by_boundary]
     return " · ".join(parts)
 
@@ -113,11 +113,11 @@ def month_table_rows(months: list[MonthRow]) -> list[list[str]]:
             [
                 str(m.period),
                 fmt_num(m.price),
-                fmt_num(m.consumption),
+                fmt_num(m.vej_ist),
                 fmt_num(m.pc),
                 fmt_num(m.demand),
-                fmt_num(m.vet),
-                fmt_pct(m.pct_vet),
+                fmt_num(m.vet_soll),
+                fmt_pct(m.pct_vet_soll),
             ]
         )
     return rrows
@@ -127,11 +127,11 @@ def year_summary_values(ys: BoundaryYearSummary) -> list[str]:
     return [
         str(ys.year_index),
         fmt_num(ys.mean_price),
-        fmt_num(ys.sum_consumption),
+        fmt_num(ys.sum_vej_ist),
         fmt_num(ys.sum_demand_ref),
         fmt_num(ys.sum_pc),
-        fmt_num(ys.vej),
-        fmt_pct(ys.pct_sumc_vej),
+        fmt_num(ys.vej_ziel),
+        fmt_pct(ys.pct_vej_ist_jahr_vs_ziel),
     ]
 
 
@@ -139,9 +139,9 @@ def boundary_summary_row(section: BoundarySection) -> list[str]:
     t = section.total
     return [
         f"{section.label} ({section.key})",
-        fmt_num(t.sum_consumption),
+        fmt_num(t.sum_vej_ist),
         fmt_num(t.sum_demand_ref),
         fmt_num(t.sum_pc),
-        fmt_num(t.vej),
-        fmt_pct(t.pct_sumc_vej),
+        fmt_num(t.vej_ziel),
+        fmt_pct(t.pct_vej_ist_jahr_vs_ziel),
     ]

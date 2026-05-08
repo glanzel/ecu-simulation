@@ -15,14 +15,15 @@ class PriceConfig:
     tolerance: float = 1e-9
     price_eta_clip: tuple[float, float] = (-12.0, -0.02)
     price_step_multiplier_clip: tuple[float, float] = (1.01, 2.5)
-    # Elastizität für den Rohpreis-Schritt: OLS ln(c) ~ const + η·ln(p) über die letzten
-    # ``price_elasticity_history_lookback`` Intervalle (mindestens ``price_elasticity_history_min_points``
-    # gültige Punkte); sonst Fallback Zwei-Punkte-Schätzung aus dem letzten Intervallpaar.
+    # OLS ln(c) ~ const + η·ln(p) über die letzten ``price_elasticity_history_lookback`` Intervalle.
+    # Erst ab ``price_elasticity_warmup_months`` abgeschlossenen Monaten: Elastizität überhaupt;
+    # zugleich Mindestzahl gültiger (ln p, ln c)-Punkte in diesem Fenster — sonst Bump (+ weiche Staffel).
     price_elasticity_history_lookback: int = 12
-    price_elasticity_history_min_points: int = 4
+    price_elasticity_warmup_months: int = 5
     price_debug_print_elasticity: bool = False
-    # Wenn > 0 und mittlere Auslastung (letzter Monat) > 1 + p/100: Rohpreise einheitlich skalieren
-    # (Verhältnisse erhalten) mit s=clamp(ecu/B_roh, B_alt·(1±p/100)/B_roh); B_alt = Σ p_alt·VEJ
-    # zuletzt gültig, B_roh = Σ p_roh·VEJ; pro Zeitschritt, nicht hochgerechnet pro Jahr. p = prozentuale
-    # Spanne, um die sich ``Σ p·VEJ`` gegenüber dem vorigen Bündel höchstens ändert. 0 = immer exakt.
+    # Prozent p pro Periode: im **harten** ECU-Pfad begrenzt dies ``Σ p·VEJ`` (``scale_percentual_to_ecu``).
+    # Im **Warmup** (weniger als ``price_elasticity_warmup_months`` abgeschlossene Beobachtungen,
+    # bei ``max_pct > 0``): nur pro-Grenzen-Klemme ``r_k`` ggü. ``p_alt``, **keine** Normierung
+    # ``Σ p·VEJ = EcuJ``; bei hoher Auslastung wie weicher Pfad Ratchet auf ``ecu_soll_effective``.
+    # Nach Warmup, **weicher** ECU-Pfad (Auslastung > 1+p/100): Ratchet + ``scale_budget_to_ecu``.
     max_shadow_bundle_scale_pct_per_period: float = 1.0
