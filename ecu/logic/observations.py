@@ -2,9 +2,8 @@
 Verbrauchsbeobachtungen: Werte je planetarer Grenze, Zeitabschnitte und Timeline.
 
 Pro Grenze werden Skalare in ``ConsumptionRecord`` gehalten; gebündelte
-Schattenpreise/Konsum/VET in der Simulation als ``dict[str, float]`` mit
-Schlüsseln aus ``BOUNDARY_KEYS``. **VET** = zulässige Menge pro Monat (VEJ/12);
-Konsum ``value`` ist pro Monat in derselben Einheit.
+Schattenpreise und VEJ-/VET-Größen in der Simulation als ``dict[str, float]`` mit
+Schlüsseln aus ``BOUNDARY_KEYS``. Siehe ``ecu/GLOSSAR.md`` (``vet_soll``, ``vej_ist``).
 """
 
 from __future__ import annotations
@@ -36,12 +35,12 @@ class ConsumptionRecord:
 
     control_variable_key: str
     unit: str
-    value: float
-    """Beobachteter Konsum im Intervall (pro Monat, konsistent zu ``vet``)."""
-    vet: float
-    """Zulässige Menge pro Monat (jährliche VEJ / 12)."""
+    vej_ist: float
+    """Beobachteter bzw. modellierter Verbrauch (pro Monat, gleiche Einheit wie ``vet_soll``)."""
+    vet_soll: float
+    """Kurzfristiges Soll pro Monat (``vej_ziel / 12`` am gleichen Kalenderraster)."""
     price: float
-    """Schattenpreis, zu dem ``value`` beobachtet wurde."""
+    """Schattenpreis, zu dem ``vej_ist`` gilt."""
     demand_at_reference_price: float | None = None
     """Nachfrage-Skalierung bei p_ref für diese Grenze (optional, pro Beobachtung)."""
     reference_shadow_price: float | None = None
@@ -69,13 +68,13 @@ class ConsumptionInterval:
         """Schattenpreis ``p`` aus dem Record."""
         return self.record_for_key(key).price
 
-    def consumption_for(self, key: str) -> float:
-        """Konsum-/Nachfragemenge aus dem Record (pro Monat)."""
-        return self.record_for_key(key).value
+    def vej_ist_for(self, key: str) -> float:
+        """Monatlicher Ist-Verbrauch (Verschmutzungseinheiten) aus dem Record."""
+        return self.record_for_key(key).vej_ist
 
-    def vet_for(self, key: str) -> float:
-        """VET (Monats-Obergrenze) aus dem Record."""
-        return self.record_for_key(key).vet
+    def vet_soll_for(self, key: str) -> float:
+        """Monatliches VET-Soll aus dem Record."""
+        return self.record_for_key(key).vet_soll
 
     def shadow_prices_map(self) -> dict[str, float]:
         """Aktuelle Schattenpreise ``price`` dieses Intervalls."""
@@ -87,8 +86,8 @@ class ConsumptionInterval:
         step_index: int,
         zeitraum_days: float,
         shadow_prices: dict[str, float],
-        consumption: dict[str, float],
-        vet: dict[str, float],
+        vej_ist: dict[str, float],
+        vet_soll: dict[str, float],
         demand_at_reference_price: dict[str, float] | None = None,
         reference_shadow_price: dict[str, float] | None = None,
     ) -> ConsumptionInterval:
@@ -101,8 +100,8 @@ class ConsumptionInterval:
                 ConsumptionRecord(
                     control_variable_key=k,
                     unit=_canonical_unit_for_boundary(k),
-                    value=consumption[k],
-                    vet=vet[k],
+                    vej_ist=vej_ist[k],
+                    vet_soll=vet_soll[k],
                     price=shadow_prices[k],
                     demand_at_reference_price=d_ref,
                     reference_shadow_price=p_ref,
@@ -120,10 +119,20 @@ class ConsumptionTimeline:
     """Geordnete Intervalle mit ECU-Jahresvolumen und Preis-Konfiguration (fortlaufend über die Simulation)."""
 
     ecu_per_year: float
-    """EcuJ pro Jahr (wie ``SimulationConfig.ecu_per_year``); in der Preislogik Ziel für Σ p·VEJ."""
+    """EcuJ pro Jahr (Konfig-Soll, wie ``SimulationConfig.ecu_per_year``); Ziel Σ p·VEJ-Ziel im harten Pfad."""
     price_config: PriceConfig
+    ecu_per_year_config: float = 0.0
+    """Unverändertes Jahres-Soll (Kopie der Konfiguration) für Ratchet und harten Pfad."""
+    ecu_soll_effective: float = 0.0
+    """Weicher Pfad: wirksames Jahres-ECU-Soll; sinkt höchstens um ``max_pct`` %/Periode bis ``ecu_per_year_config``."""
     prices_for_next_consumption: dict[str, float] | None = None
     """Von ``advance_shadow_prices`` gesetzt: Schattenpreise für den nächsten Konsum (leeres Timeline → Schätzstart)."""
+    warmup_diag_sum_p_vet_soll_monthly: float | None = None
+    """Nur Warmup-Preispfad: ``Σ_k p_k·VET-Soll_k`` (Monat); nach Auslesen durch Simulation gelöscht."""
+    warmup_diag_ecu_soll_monthly: float | None = None
+    """Nur Warmup: Referenz ``ecu_soll_effective/12`` nach ggf. Ratchet derselben Periode."""
+    ecu_monthly_cap_override: float | None = None
+    """Optional: monatliche ECU-Obergrenze für die **nächste** Periode (weicher Preispfad); nach Lesen zurückgesetzt."""
     _intervals: list[ConsumptionInterval] = field(default_factory=list, repr=False)
 
     def append(self, interval: ConsumptionInterval) -> None:
@@ -141,3 +150,11 @@ class ConsumptionTimeline:
     @property
     def last(self) -> ConsumptionInterval:
         return self._intervals[-1]
+
+    def take_ecu_monthly_cap(self, ecu_per_year_soll: float, months_per_year: int) -> float:
+        """Liefert die wirksame monatliche ECU-Obergrenze und löscht ein gesetztes Override (weicher Pfad)."""
+        if self.ecu_monthly_cap_override is not None:
+            cap = float(self.ecu_monthly_cap_override)
+            self.ecu_monthly_cap_override = None
+            return cap
+        return ecu_per_year_soll / float(months_per_year)

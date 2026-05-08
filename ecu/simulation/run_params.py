@@ -58,8 +58,10 @@ class RunParams:
     (100 = kein Wachstum, 110 = +10 %, 90 = −10 % **pro Jahr**; pro Zeitschritt ``(Index/100)^(1/steps_per_year)``,
     vgl. ``run_simulation(..., steps_per_year=…)`` — Standard 12 Monate, später z. B. 365 täglich).
     ``start_demand``: Anteil der VEJ in % (Anteil = p/100).
-    ``price_max_bundle_scale_pct`` (optional): p in % — Klemme der Σ p·VEJ-Normierung ggü. voriger Periode
-    bei hoher Auslastung; 0 = immer exakte Normierung. Standard aus ``PriceConfig``.
+    ``price_max_bundle_scale_pct`` (optional): p in % — u. a. weicher ECU-Ratchet, harter Σ p·VEJ-Pfad,
+    Rohpreis-Kappen; Standard aus ``PriceConfig``.
+    ``price_elasticity_warmup_months`` (optional): Ab N abgeschlossenen Monaten Elastizität (OLS);
+    gleiche N als Mindestzahl gültiger Historienpunkte; davor nur Bump + weiche Staffel.
     """
 
     ecu: float | None = None
@@ -71,6 +73,7 @@ class RunParams:
     seed: int | None = None
     consumption_budget: str | None = None
     max_shadow_bundle_scale_pct_per_period: float | None = None
+    price_elasticity_warmup_months: int | None = None
 
     @classmethod
     def from_argparse(cls, ns: argparse.Namespace) -> RunParams:
@@ -85,6 +88,9 @@ class RunParams:
             consumption_budget=ns.consumption_budget,
             max_shadow_bundle_scale_pct_per_period=getattr(
                 ns, "price_max_bundle_scale_pct", None
+            ),
+            price_elasticity_warmup_months=getattr(
+                ns, "price_elasticity_warmup_months", None
             ),
         )
 
@@ -110,6 +116,8 @@ class RunParams:
             cfg.price.max_shadow_bundle_scale_pct_per_period = (
                 self.max_shadow_bundle_scale_pct_per_period
             )
+        if self.price_elasticity_warmup_months is not None:
+            cfg.price.price_elasticity_warmup_months = int(self.price_elasticity_warmup_months)
 
     def growth_per_boundary(self) -> dict[str, float]:
         """Multiplikativer Jahresfaktor pro Grenze; Eingabe als Index (100 = Faktor 1)."""
@@ -142,6 +150,7 @@ class RunParams:
         seed: int | None = None,
         consumption_budget: str | None = None,
         price_max_bundle_scale_pct: float | None = None,
+        price_elasticity_warmup_months: int | None = None,
     ) -> RunParams:
         """Parameter wie bei FastAPI-``Query``-Defaults (fehlende Optionals = Konfig-Default)."""
         return cls(
@@ -154,6 +163,7 @@ class RunParams:
             seed=seed,
             consumption_budget=consumption_budget,
             max_shadow_bundle_scale_pct_per_period=price_max_bundle_scale_pct,
+            price_elasticity_warmup_months=price_elasticity_warmup_months,
         )
 
     def to_url_query(self) -> str:
@@ -186,5 +196,9 @@ class RunParams:
                     "price_max_bundle_scale_pct",
                     str(self.max_shadow_bundle_scale_pct_per_period),
                 )
+            )
+        if self.price_elasticity_warmup_months is not None:
+            items.append(
+                ("price_elasticity_warmup_months", str(self.price_elasticity_warmup_months))
             )
         return "&".join(f"{k}={enc(k, v)}" for k, v in items)

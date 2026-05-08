@@ -21,10 +21,14 @@ def _audit(title: str, results) -> None:
     print_boundary_tables(results)
 
 
-def _assert_demand_within_vej(results) -> None:
+def _assert_ecu_monthly_cap(results) -> None:
+    """Verbuchte ECU pro Monat darf die wirksame Monatsdecke nicht übersteigen."""
     for r in results:
-        for k in BOUNDARY_KEYS:
-            assert r.consumption[k] <= r.vej[k] + TOL, (k, r.consumption[k], r.vej[k], r.period)
+        assert r.ecu_expenditure <= r.ecu_ceiling_month + TOL, (
+            r.period,
+            r.ecu_expenditure,
+            r.ecu_ceiling_month,
+        )
 
 
 def test_ecuj_bundle_at_least_floor():
@@ -37,8 +41,8 @@ def test_ecuj_bundle_at_least_floor():
     results = run_simulation(cfg, months=2)
     _audit("test_ecuj_bundle_at_least_floor", results)
     for r in results:
-        assert r.bundle_ecu + TOL >= r.ecu_per_year
-    _assert_demand_within_vej(results)
+        assert r.bundle_ecu + TOL >= r.ecu_per_year_soll
+    _assert_ecu_monthly_cap(results)
 
 
 def test_demand_never_exceeds_vej_default_config():
@@ -49,7 +53,7 @@ def test_demand_never_exceeds_vej_default_config():
     g["co2"] = annual_co2
     results = run_simulation(cfg, months=5, demand_growth_per_year=g)
     _audit("test_demand_never_exceeds_vej_default_config", results)
-    _assert_demand_within_vej(results)
+    _assert_ecu_monthly_cap(results)
 
 
 def test_concentration_mostly_one_boundary():
@@ -64,7 +68,7 @@ def test_concentration_mostly_one_boundary():
     )
     results = run_simulation(cfg, months=3)
     _audit("test_concentration_mostly_one_boundary", results)
-    _assert_demand_within_vej(results)
+    _assert_ecu_monthly_cap(results)
 
 
 def test_high_start_demand_still_bounded():
@@ -77,4 +81,4 @@ def test_high_start_demand_still_bounded():
     cfg.price.price_bump = 1.05
     results = run_simulation(cfg, months=1)
     _audit("test_high_start_demand_still_bounded", results)
-    _assert_demand_within_vej(results)
+    _assert_ecu_monthly_cap(results)

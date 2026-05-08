@@ -25,6 +25,7 @@ def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
             "meanUtilization": [],
             "bundleEcu": [],
             "ecuExpenditure": [],
+            "ecuCeilingMonth": [],
             "pctVetSeries": [],
             "priceSeries": [],
         }
@@ -33,6 +34,7 @@ def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
     mean_u = [_num_json(r.mean_utilization) for r in results]
     bundle = [_num_json(r.bundle_ecu) for r in results]
     exp = [_num_json(r.ecu_expenditure) for r in results]
+    cap_m = [_num_json(r.ecu_ceiling_month) for r in results]
     pct_vet_series: list[list[float | None]] = []
     price_series: list[list[float | None]] = []
     for b in ALL_BOUNDARIES:
@@ -40,8 +42,8 @@ def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
         pct_row: list[float | None] = []
         price_row: list[float | None] = []
         for r in results:
-            v = r.vet[k]
-            c = r.consumption[k]
+            v = r.vet_soll[k]
+            c = r.vej_ist[k]
             pct = (100.0 * c / v) if v > 0 else float("nan")
             pct_row.append(_num_json(pct))
             price_row.append(_num_json(r.prices[k]))
@@ -53,6 +55,7 @@ def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
         "meanUtilization": mean_u,
         "bundleEcu": bundle,
         "ecuExpenditure": exp,
+        "ecuCeilingMonth": cap_m,
         "pctVetSeries": pct_vet_series,
         "priceSeries": price_series,
     }
