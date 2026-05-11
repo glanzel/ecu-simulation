@@ -1,5 +1,5 @@
 """
-Start-Schattenpreise aus relativen Gewichten und VEJ (Bootstrap, erstes Jahr).
+Start-Schattenpreise aus relativen Gewichten und VEJ-Ziel (Bootstrap, erstes Jahr).
 
 Die eigentliche ECU-Normierung und Folgeperioden liegen in ``logic.prices``.
 """
@@ -30,10 +30,10 @@ def prices_from_weights(
     """
     Baut den Start-Schattenpreis je Grenze aus relativen Gewichten und Jahres-ECU-Budget.
 
-    Formel pro Grenze *i*: ``p_i = w_i · ecumenge_ziel_J / VEJ-Ziel_i``, wobei die Eingabe-
+    Formel pro Grenze *i*: ``p_i = w_i · ecumenge_ziel_J / vej_ziel_i``, wobei die Eingabe-
     gewichte zuerst auf Summe 1 normiert werden (``Σ w_i = 1``).
 
-    ``ecumenge_ziel_J`` ist das Ziel für die gewichtete Summe ``Σ_i p_i · VEJ-Ziel_i`` nach
+    ``ecumenge_ziel_J`` ist das Ziel für die gewichtete Summe ``Σ_i p_i · vej_ziel_i`` nach
     Normierung der Gewichte (vor weiterer Skalierung durch andere Schritte).
     """
     boundary_order = list(BOUNDARY_KEYS)
@@ -47,7 +47,7 @@ def prices_from_weights(
     for index, boundary_key in enumerate(boundary_order):
         vej_ziel_at = vej_ziel[boundary_key]
         if vej_ziel_at <= 0:
-            raise ValueError(f"VEJ-Ziel für {boundary_key} muss positiv sein.")
+            raise ValueError(f"vej_ziel für {boundary_key} muss positiv sein.")
         shadow_prices[boundary_key] = (
             normalized_weights[index] * ecumenge_ziel_J / vej_ziel_at
         )
@@ -61,7 +61,7 @@ def raw_initial_shadow_prices_from_utilization(
     weights: Sequence[float],
 ) -> dict[str, float]:
     """
-    Roh-Startpreise: ``p_i = w_i · (E_soll · u_avg) / (VEJ-Ziel_i · max(u_i, ε))`` mit normierten
+    Roh-Startpreise: ``p_i = w_i · (E_soll · u_avg) / (vej_ziel_i · max(u_i, ε))`` mit normierten
     Gewichten ``w_i`` (Summe 1) und ``u_avg`` = Mittel der ``u_i`` je Grenze.
     """
     boundary_order = list(BOUNDARY_KEYS)
@@ -79,7 +79,7 @@ def raw_initial_shadow_prices_from_utilization(
     for index, boundary_key in enumerate(boundary_order):
         vej_ziel_at = vej_ziel[boundary_key]
         if vej_ziel_at <= 0:
-            raise ValueError(f"VEJ-Ziel für {boundary_key} muss positiv sein.")
+            raise ValueError(f"vej_ziel für {boundary_key} muss positiv sein.")
         out[boundary_key] = (
             normalized_weights[index] * ecumenge_ziel_J * u_avg / (vej_ziel_at * u_safe[index])
         )

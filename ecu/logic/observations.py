@@ -2,8 +2,8 @@
 Verbrauchsbeobachtungen: Werte je planetarer Grenze, Zeitabschnitte und Timeline.
 
 Pro Grenze werden Skalare in ``ConsumptionRecord`` gehalten; gebündelte
-Schattenpreise und VEJ-/VET-Größen in der Simulation als ``dict[str, float]`` mit
-Schlüsseln aus ``BOUNDARY_KEYS``. Siehe ``ecu/GLOSSAR.md`` (``vet_soll``, ``vej_ist``).
+Schattenpreise und VEJ-/VET-Ziel-Größen in der Simulation als ``dict[str, float]`` mit
+Schlüsseln aus ``BOUNDARY_KEYS``. Siehe ``ecu/GLOSSAR.md`` (``vet_ziel``, ``vej_ist``).
 """
 
 from __future__ import annotations
@@ -36,9 +36,9 @@ class ConsumptionRecord:
     control_variable_key: str
     unit: str
     vej_ist: float
-    """Beobachteter bzw. modellierter Verbrauch (pro Monat, gleiche Einheit wie ``vet_soll``)."""
-    vet_soll: float
-    """Kurzfristiges Soll pro Monat (``vej_ziel / 12`` am gleichen Kalenderraster)."""
+    """Beobachteter bzw. modellierter Verbrauch (pro Monat, gleiche Einheit wie ``vet_ziel``)."""
+    vet_ziel: float
+    """VET-Ziel pro Monat (``vej_ziel / 12`` am gleichen Kalenderraster)."""
     price: float
     """Schattenpreis, zu dem ``vej_ist`` gilt."""
     demand_at_reference_price: float | None = None
@@ -72,9 +72,9 @@ class ConsumptionInterval:
         """Monatlicher Ist-Verbrauch (Verschmutzungseinheiten) aus dem Record."""
         return self.record_for_key(key).vej_ist
 
-    def vet_soll_for(self, key: str) -> float:
-        """Monatliches VET-Soll aus dem Record."""
-        return self.record_for_key(key).vet_soll
+    def vet_ziel_for(self, key: str) -> float:
+        """VET-Ziel (Monat) aus dem Record."""
+        return self.record_for_key(key).vet_ziel
 
     def shadow_prices_map(self) -> dict[str, float]:
         """Aktuelle Schattenpreise ``price`` dieses Intervalls."""
@@ -87,7 +87,7 @@ class ConsumptionInterval:
         zeitraum_days: float,
         shadow_prices: dict[str, float],
         vej_ist: dict[str, float],
-        vet_soll: dict[str, float],
+        vet_ziel: dict[str, float],
         demand_at_reference_price: dict[str, float] | None = None,
         reference_shadow_price: dict[str, float] | None = None,
     ) -> ConsumptionInterval:
@@ -101,7 +101,7 @@ class ConsumptionInterval:
                     control_variable_key=k,
                     unit=_canonical_unit_for_boundary(k),
                     vej_ist=vej_ist[k],
-                    vet_soll=vet_soll[k],
+                    vet_ziel=vet_ziel[k],
                     price=shadow_prices[k],
                     demand_at_reference_price=d_ref,
                     reference_shadow_price=p_ref,
@@ -127,8 +127,8 @@ class ConsumptionTimeline:
     """Simuliertes langfristiges Jahresziel (Ratchet); sinkt höchstens um ``max_pct`` %/Periode bis ``ecumenge_ziel_J_konfig``."""
     prices_for_next_consumption: dict[str, float] | None = None
     """Von ``advance_shadow_prices`` gesetzt: Schattenpreise für den nächsten Konsum (leeres Timeline → Schätzstart)."""
-    warmup_diag_sum_p_vet_soll_monthly: float | None = None
-    """Nur Warmup-Preispfad: ``Σ_k p_k·VET-Soll_k`` (Monat); nach Auslesen durch Simulation gelöscht."""
+    warmup_diag_sum_p_vet_ziel_monthly: float | None = None
+    """Nur Warmup-Preispfad: ``Σ_k p_k·vet_ziel_k``; nach Auslesen durch Simulation gelöscht."""
     warmup_diag_ecumenge_ziel_sim_monthly: float | None = None
     """Nur Warmup: Referenz ``ecumenge_ziel_sim_J/12`` nach ggf. Ratchet derselben Periode."""
     ecumenge_T_override: float | None = None

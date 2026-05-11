@@ -2,7 +2,7 @@
 Zeitschritt-Simulation: pro Periode zuerst Schattenpreise (``advance_shadow_prices``),
 dann genau ein Konsum; eine gemeinsame ``ConsumptionTimeline`` über alle Perioden.
 
-Schattenpreise und ECU-Logik liegen in ``logic.prices``. VEJ-Benennung: ``ecu/GLOSSAR.md``.
+Schattenpreise und ECU-Logik liegen in ``logic.prices``. VEJ-/VET-Ziel: ``ecu/GLOSSAR.md``.
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ class PeriodResult:
     """Monatlicher Ist-Verbrauch (Verschmutzungseinheiten) je Grenze nach Budgetabbildung."""
     vej_ziel: dict[str, float]
     """Langfristiges planetares Ziel je Grenze (Jahres-Obergrenze, physische Einheit/a)."""
-    vet_soll: dict[str, float]
-    """Kurzfristiges monatliches Soll (``vej_ziel / 12``)."""
+    vet_ziel: dict[str, float]
+    """VET-Ziel pro Monat (``vej_ziel / 12``)."""
     bundle_ecu: float
     """Σ p·VEJ-Ziel — hypothetischer Jahreswert des vollen Ziel-Bündels zu den Schattenpreisen."""
     ecu_ist_T: float
@@ -55,14 +55,14 @@ class PeriodResult:
     ecumenge_T: float
     """Im Zeitschritt T ausgegebene simulierte ECU-Menge (Budgetobergrenze für Σ p·c)."""
     mean_utilization: float
-    """Mittel aus VEJ-Ist / VET-Soll über alle Grenzen (kann > 1 sein, z. B. Grenzüberschreitung)."""
+    """Mittel aus VEJ-Ist / VET-Ziel über alle Grenzen (kann > 1 sein, z. B. Grenzüberschreitung)."""
     ecu_per_unit: dict[str, float]
     unit_per_ecu: dict[str, float]
     demand_at_reference_price: dict[str, float]
     consumption_timeline: ConsumptionTimeline
     """Gemeinsame, fortlaufende Timeline (bis einschließlich dieser Periode)."""
-    warmup_diag_sum_p_vet_soll_monthly: float | None = None
-    """Warmup: Σ p·VET-Soll (Monat) zu den gesetzten Schattenpreisen."""
+    warmup_diag_sum_p_vet_ziel_monthly: float | None = None
+    """Warmup: Σ p·VET-Ziel zu den gesetzten Schattenpreisen."""
     warmup_diag_ecumenge_ziel_sim_monthly: float | None = None
     """Warmup: ``ecumenge_ziel_sim_J/12`` nach ggf. Ratchet (nur Diagnose)."""
 
@@ -86,8 +86,8 @@ def build_vej_ziel_bundle() -> dict[str, float]:
     return out
 
 
-def vet_soll_from_vej_ziel(vej_ziel: dict[str, float]) -> dict[str, float]:
-    """Monatliches VET-Soll = VEJ-Ziel / 12 (glattes Jahr)."""
+def vet_ziel_from_vej_ziel(vej_ziel: dict[str, float]) -> dict[str, float]:
+    """VET-Ziel je Grenze: ``vej_ziel / 12`` (glattes Jahr)."""
     inv = float(MONTHS_PER_YEAR)
     return {k: vej_ziel[k] / inv for k in BOUNDARY_KEYS}
 
@@ -141,14 +141,14 @@ def run_one_period(
     else:
         ecumenge_T = timeline.take_ecumenge_T(ecumenge_ziel_J, MONTHS_PER_YEAR)
     vej_ist = apply_consumption_budget(raw_vej_ist, p, ecumenge_T, budget_method)
-    vet_soll = vet_soll_from_vej_ziel(vej_ziel)
+    vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     timeline.append(
         ConsumptionInterval.from_observation(
             period_index,
             DAYS_PER_MONTH,
             p,
             vej_ist,
-            vet_soll,
+            vet_ziel,
             demand_at_reference_price=demand_at_reference_price,
             reference_shadow_price=reference_shadow_price,
         )
@@ -157,10 +157,10 @@ def run_one_period(
     return p, vej_ist, bv, ecumenge_T
 
 
-def mean_boundary_utilization(vej_ist: dict[str, float], vet_soll: dict[str, float]) -> float:
-    """Durchschnitt der Auslastung pro Grenze (VEJ-Ist / VET-Soll)."""
+def mean_boundary_utilization(vej_ist: dict[str, float], vet_ziel: dict[str, float]) -> float:
+    """Durchschnitt der Auslastung pro Grenze (VEJ-Ist / VET-Ziel)."""
     parts = [
-        vej_ist[k] / vet_soll[k] if vet_soll[k] > 0 else 0.0
+        vej_ist[k] / vet_ziel[k] if vet_ziel[k] > 0 else 0.0
         for k in BOUNDARY_KEYS
     ]
     return sum(parts) / len(parts)
@@ -189,10 +189,10 @@ def run_simulation(
         raise ValueError("steps_per_year muss mindestens 1 sein.")
 
     vej_ziel = build_vej_ziel_bundle()
-    vet_soll = vet_soll_from_vej_ziel(vej_ziel)
+    vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     base_epsilon = cfg.resolved_epsilon()
     frac = cfg.resolved_start_demand()
-    demand_at_reference_price = {k: frac[k] * vet_soll[k] for k in BOUNDARY_KEYS}
+    demand_at_reference_price = {k: frac[k] * vet_ziel[k] for k in BOUNDARY_KEYS}
     annual = (
         demand_growth_per_year
         if demand_growth_per_year is not None
@@ -243,12 +243,12 @@ def run_simulation(
             cfg.consumption_budget_method,
             frac,
         )
-        mean_u = mean_boundary_utilization(vej_ist, vet_soll)
+        mean_u = mean_boundary_utilization(vej_ist, vet_ziel)
         xr = exchange_rates_for_shadow_prices(p)
         ecu_ist_T = bundle_value(p, vej_ist)
-        w_sum = timeline.warmup_diag_sum_p_vet_soll_monthly
+        w_sum = timeline.warmup_diag_sum_p_vet_ziel_monthly
         w_ecu_m = timeline.warmup_diag_ecumenge_ziel_sim_monthly
-        timeline.warmup_diag_sum_p_vet_soll_monthly = None
+        timeline.warmup_diag_sum_p_vet_ziel_monthly = None
         timeline.warmup_diag_ecumenge_ziel_sim_monthly = None
         results.append(
             PeriodResult(
@@ -256,7 +256,7 @@ def run_simulation(
                 prices=p,
                 vej_ist=vej_ist,
                 vej_ziel=vej_ziel,
-                vet_soll=vet_soll,
+                vet_ziel=vet_ziel,
                 bundle_ecu=bv,
                 ecu_ist_T=ecu_ist_T,
                 ecumenge_ziel_J=ecumenge_ziel_J,
@@ -267,7 +267,7 @@ def run_simulation(
                 unit_per_ecu=xr.unit_per_ecu,
                 demand_at_reference_price=dict(demand_at_reference_price),
                 consumption_timeline=timeline,
-                warmup_diag_sum_p_vet_soll_monthly=w_sum,
+                warmup_diag_sum_p_vet_ziel_monthly=w_sum,
                 warmup_diag_ecumenge_ziel_sim_monthly=w_ecu_m,
             )
         )

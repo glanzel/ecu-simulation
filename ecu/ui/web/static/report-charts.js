@@ -52,7 +52,7 @@
     var boundaries = payload.boundaries || [];
     var c1 = document.getElementById("chart-mean-utilization");
     var c2 = document.getElementById("chart-ecu-totals");
-    var c3 = document.getElementById("chart-pct-vet-by-boundary");
+    var c3 = document.getElementById("chart-pct-vet-ziel");
     var c4 = document.getElementById("chart-price-by-boundary");
     if (c1) {
       new Chart(c1, {
@@ -61,7 +61,7 @@
           labels: labels,
           datasets: [
             {
-              label: "Mittlere Auslastung (Ø VEJ-Ist / VET-Soll)",
+              label: "Mittlere Auslastung (Ø VEJ-Ist / VET-Ziel)",
               data: payload.meanUtilization,
               borderColor: colors[0],
               backgroundColor: "rgba(13,148,136,0.08)",
@@ -134,14 +134,14 @@
         options: baseLineOptions("ECU / Monat"),
       });
     }
-    if (c3 && payload.pctVetSeries) {
+    if (c3 && payload.pctVetZielSeries) {
       var ds3 = [];
       for (var i = 0; i < boundaries.length; i++) {
         var b = boundaries[i];
         var col = colors[i % colors.length];
         ds3.push({
           label: b.label || b.key,
-          data: payload.pctVetSeries[i],
+          data: payload.pctVetZielSeries[i],
           borderColor: col,
           backgroundColor: "transparent",
           tension: 0.15,
@@ -153,7 +153,7 @@
       new Chart(c3, {
         type: "line",
         data: { labels: labels, datasets: ds3 },
-        options: baseLineOptions("VEJ-Ist / VET-Soll (%)"),
+        options: baseLineOptions("VEJ-Ist / VET-Ziel (%)"),
       });
     }
     if (c4 && payload.priceSeries) {
