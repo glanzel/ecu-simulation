@@ -128,7 +128,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="PCT",
         help=(
             "Obergrenze p in % (max_shadow_bundle_scale_pct_per_period): weicher ECU-Ratchet, "
-            "harter Σ p·VEJ-Pfad, Rohpreis-Stufen — siehe PriceConfig. 0 = exakte Normierung."
+            "harter Σ p·VEJ-Ziel-Pfad, Rohpreis-Stufen — siehe PriceConfig. 0 = exakte Normierung."
         ),
     )
     p.add_argument(
@@ -147,8 +147,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _boundary_vet_d_unit(b: BoundaryConstants) -> str:
-    """Kurz-Hinweis zu Einheiten von VET-Soll und VEJ-Ist in der Legende (monatlich)."""
-    return f"{b.consumption_unit_monthly} (VET-Soll und VEJ-Ist pro Monat)"
+    """Kurz-Hinweis zu Einheiten von VET-Ziel und VEJ-Ist in der Legende (monatlich)."""
+    return f"{b.consumption_unit_monthly} (VET-Ziel und VEJ-Ist pro Monat)"
 
 
 def print_boundary_tables(results: list[PeriodResult]) -> None:
@@ -168,8 +168,8 @@ def print_boundary_tables(results: list[PeriodResult]) -> None:
             f"{'p·VEJ-Ist':>14}  "
             f"{'demand':>14}  "
             f"{'Δ %':>10}  "
-            f"{'VET-Soll':>14}  "
-            f"{'Ist/VET-Soll %':>14}"
+            f"{'VET-Ziel':>14}  "
+            f"{'Ist/VET-Ziel %':>14}"
         )
         print("-" * w)
         for i, r in enumerate(results):
@@ -177,7 +177,7 @@ def print_boundary_tables(results: list[PeriodResult]) -> None:
             c = r.vej_ist[k]
             ecu_flow = p * c
             d_ref = r.demand_at_reference_price[k]
-            v = r.vet_soll[k]
+            v = r.vet_ziel[k]
             if i == 0:
                 dd = f"{'—':>10}"
             else:
@@ -194,9 +194,9 @@ def print_boundary_tables(results: list[PeriodResult]) -> None:
             "VEJ-Ist = modellierter Monatsverbrauch bei diesem p; "
             "p·VEJ-Ist = ECU-Verbrauch an dieser Grenze; "
             "demand = demand_at_reference_price (Nachfrage-Skalierung bei p_ref, Wachstum/Rauschen); "
-            "VET-Soll = Monats-Obergrenze (VEJ-Ziel/12); "
+            "VET-Ziel = Monats-Obergrenze (VEJ-Ziel/12); "
             "Δ % = Änderung von VEJ-Ist zum Vormonat; "
-            "Ist/VET-Soll % = VEJ-Ist relativ zur Monats-Obergrenze. "
+            "Ist/VET-Ziel % = VEJ-Ist relativ zur Monats-Obergrenze. "
             f"Einheiten: {_boundary_vet_d_unit(b)}"
         )
 
@@ -238,12 +238,12 @@ def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) ->
         "**Σ p·VEJ-Ziel** = hypothetischer Jahreswert zum Monatspreisvektor — "
         "Schattenpreis-/Bilanzlogik; **nicht** gleich der Monatsausgabe. "
         "*Slack = Σ p·VEJ-Ziel − ecumenge_ziel_J (nach Preisnormierung ~0, Rundung). "
-        "Ø Auslastung = Mittel aus VEJ-Ist / VET-Soll je Grenze (Verhältnis, kann > 1 bei Grenzüberschreitung)."
+        "Ø Auslastung = Mittel aus VEJ-Ist / VET-Ziel je Grenze (Verhältnis, kann > 1 bei Grenzüberschreitung)."
     )
 
 
 def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> None:
-    """Pro Jahr: Summe Σ p·c, repräsentatives Σ p·VEJ (Monatsende), Mittel der Auslastung."""
+    """Pro Jahr: Summe Σ p·c, repräsentatives Σ p·VEJ-Ziel (Monatsende), Mittel der Auslastung."""
     by_y = group_results_by_calendar_year(results)
     if not by_y:
         return
@@ -359,7 +359,7 @@ def print_warmup_diagnostic_table(results: list[PeriodResult]) -> None:
         return
     w = 78
     print(f"\n{'─' * w}")
-    print("  Warmup — Diagnose Σ p·VET-Soll (Monat) vs. ecumenge_ziel_sim_J/12 (ohne Σ p·VEJ-Ziel-Normierung)")
+    print("  Warmup — Diagnose Σ p·VET-Ziel vs. ecumenge_ziel_sim_J/12 (ohne Σ p·VEJ-Ziel-Normierung)")
     print(f"{'─' * w}")
     colw = (14, 16, 16, 14, 14)
     print(" ".join(f"{h:>{colw[i]}}" for i, h in enumerate(WARMUP_DIAG_TABLE_HEADER)))
@@ -368,7 +368,7 @@ def print_warmup_diagnostic_table(results: list[PeriodResult]) -> None:
         print(" ".join(f"{c:>{colw[i]}}" for i, c in enumerate(row)))
     print(
         "Legende: nur Monate mit Warmup-Preispfad (erste N Beobachtungen). "
-        "Δ Monat = Σ p·VET-Soll (Monat) − ecumenge_ziel_sim_J/12; Δ Jahr = 12·Δ Monat."
+        "Δ Monat = Σ p·VET-Ziel − ecumenge_ziel_sim_J/12; Δ Jahr = 12·Δ Monat."
     )
 
 
@@ -410,7 +410,7 @@ def print_monthly_price_sums(results: list[PeriodResult]) -> None:
     print(
         "Legende: Σ p·VEJ-Ist = Σ_i p_i·vej_ist_i (monatlich verbuchte ECU). "
         "Σ p = Summe der Schattenpreise über alle Grenzen. Δ = Änderung von Σ p·VEJ-Ist zum Vormonat (%). "
-        "Ø Auslast. = Mittel aus VEJ-Ist / VET-Soll je Grenze (kann > 1)."
+        "Ø Auslast. = Mittel aus VEJ-Ist / VET-Ziel je Grenze (kann > 1)."
     )
 
 
@@ -436,11 +436,11 @@ def print_report(
     print(
         "Symbole: VEJ-Ist = modellierter Monatsverbrauch · p = Schattenpreis · "
         "p_ref = Referenzpreis · demand_at_reference_price = Skalierung bei p_ref · "
-        "VET-Soll = Monats-Obergrenze (VEJ-Ziel/12) · ε = Preiselastizität (<0)."
+        "VET-Ziel = Monats-Obergrenze (VEJ-Ziel/12) · ε = Preiselastizität (<0)."
     )
     print(
         "Ausgaben pro Monat: **Σ p·VEJ-Ist ≤ ecumenge_T** (siehe Tabelle Spalten ecumenge_T und ecu_ist_T). "
-        "Preislogik (jährlich): **ecumenge_ziel_J ≤ Σ p_i·VEJ-Ziel_i** (volles Ziel-Bündel — kann über der Monatsausgabe liegen). "
+        "Preislogik (jährlich): **ecumenge_ziel_J ≤ Σ p_i·vej_ziel_i** (volles Ziel-Bündel — kann über der Monatsausgabe liegen). "
         "Isoelastische Kurve aus demand; Budgetabbildung in der Simulation."
     )
     print_monthly_price_sums(results)

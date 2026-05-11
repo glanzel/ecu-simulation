@@ -164,14 +164,14 @@ def RunParamsBlock(
 
 
 def WarmupDiagBlock(rows: list[list[str]] | None, children: list | None = None) -> JSX:
-    """Warmup-Monate: ``Σ p·VET`` vs. ecumenge_ziel_sim_J/12 ohne Preis-Normierung auf Jahresbudget."""
+    """Warmup-Monate: ``Σ p·vet_ziel`` vs. ecumenge_ziel_sim_J/12 ohne Preis-Normierung auf Jahresbudget."""
     _ = children
     if not rows:
         return <span />
     return (
         <section class="not-prose mb-6">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                Warmup — Schattenpreise (ohne Angleich Ecu VEJ-Soll ges. an ecumenge_ziel_J)
+                Warmup — Schattenpreise (ohne Angleich Ecu VEJ-Ziel ges. (Jahr) an ecumenge_ziel_J)
             </p>
             <div class="border border-slate-200/80 bg-white shadow-sm">
                 <DataGrid
@@ -186,8 +186,8 @@ def WarmupDiagBlock(rows: list[list[str]] | None, children: list | None = None) 
             </div>
             <p class="text-[10px] text-slate-500 mt-1.5 leading-snug not-prose">
                 Nur in den ersten N Monaten (Konfiguration price_elasticity_warmup_months): pro Grenze
-                die Staffel r_k gegenüber dem Vormonatspreis; kein Angleichen von Ecu VEJ-Soll ges. (Jahr) an das
-                wirksames simuliertes Jahresziel. Spalten: Monatswert Summe p·VET-Soll, Referenz ecumenge_ziel_sim_J/12
+                die Staffel r_k gegenüber dem Vormonatspreis; kein Angleichen von Ecu VEJ-Ziel ges. (Jahr) an das
+                wirksames simuliertes Jahresziel. Spalten: Monatswert Summe p·VET-Ziel, Referenz ecumenge_ziel_sim_J/12
                 (nach ggf. Ratchet), Abweichung Monat und hochgerechnet Jahr (12·Δ Monat).
             </p>
         </section>
@@ -195,7 +195,7 @@ def WarmupDiagBlock(rows: list[list[str]] | None, children: list | None = None) 
 
 
 def GlobalYearlyEcuBlock(rows: list[YearlyEcuSummary], children: list | None = None) -> JSX:
-    """Pro Jahr: Preis-/Kontenrahmen (Ecu VEJ-Soll ges., Slack) und mittlere Auslastung."""
+    """Pro Jahr: Preis-/Kontenrahmen (Ecu VEJ-Ziel ges. (Jahr), Slack) und mittlere Auslastung."""
     _ = children
     rrows = RL.yearly_ecu_table_rows(rows)
     if rrows is None:
@@ -215,13 +215,13 @@ def GlobalYearlyEcuBlock(rows: list[YearlyEcuSummary], children: list | None = N
                     extra_classes="my-0 border-0 shadow-none"
                 />
                 <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-500 leading-snug">
-                    <strong>Ecu VEJ-Soll ges. (Jahr)</strong> = Jahreswert Σ p_i·VEJ-Ziel_i zum Preisvektor am Jahresende (Kontenrahmen).
+                    <strong>Ecu VEJ-Ziel ges. (Jahr)</strong> = Jahreswert Σ p_i·vej_ziel_i zum Preisvektor am Jahresende (Kontenrahmen).
                     Im Diagramm „ECU-Konten“ ist dieselbe Größe zusätzlich als <strong>Monatsanteil</strong> (÷12) gegenüber Ist und Referenzlinien.
                     <strong>Slack</strong> = Jahreswert Σ p·VEJ-Ziel minus konfiguriertes ecumenge_ziel_J — bei exakter Normierung 0;
                     im weichen Pfad kann er von 0 abweichen (schrittweise Annäherung ans simulierte Jahresbudget ecumenge_ziel_sim_J).{" "}
                     Diagramm „ECU-Konten“: <strong>ecumenge_ziel_sim_J (Monat)</strong> und <strong>ecumenge_T</strong> sind dort eigene Kurven
                     (ecumenge_T = simulierte ausgegebene Monatsmenge für Σ p·c; kann vom Ratchet-Monatsanteil abweichen, z. B. im ersten Monat). Ø Auslast. =
-                    Mittel aus VEJ-Ist / VET-Soll je Grenze (kann {">"} 1).
+                    Mittel aus VEJ-Ist / VET-Ziel je Grenze (kann {">"} 1).
                 </div>
             </div>
         </section>
@@ -314,7 +314,7 @@ def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Diagramme</p>
             <div class="flex flex-col gap-8 border border-slate-200/80 bg-white shadow-sm p-4">
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">Gesamtauslastung (Mittel VEJ-Ist / VET-Soll)</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">Gesamtauslastung (Mittel VEJ-Ist / VET-Ziel)</p>
                     <div class="relative h-64 w-full min-h-[200px]">
                         <canvas id="chart-mean-utilization"></canvas>
                     </div>
@@ -329,9 +329,9 @@ def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
                     </div>
                 </div>
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">Auslastung pro Grenze (VEJ-Ist / VET-Soll, %)</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">Auslastung pro Grenze (VEJ-Ist / VET-Ziel, %)</p>
                     <div class="relative h-72 w-full min-h-[220px]">
-                        <canvas id="chart-pct-vet-by-boundary"></canvas>
+                        <canvas id="chart-pct-vet-ziel"></canvas>
                     </div>
                 </div>
                 <div>

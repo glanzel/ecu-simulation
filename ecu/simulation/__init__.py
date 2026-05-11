@@ -12,7 +12,7 @@ from ecu.simulation.simulation import (
     mean_start_utilization_from_fractions,
     run_one_period,
     run_simulation,
-    vet_soll_from_vej_ziel,
+    vet_ziel_from_vej_ziel,
 )
 
 __all__ = (
@@ -28,5 +28,5 @@ __all__ = (
     "mean_start_utilization_from_fractions",
     "run_one_period",
     "run_simulation",
-    "vet_soll_from_vej_ziel",
+    "vet_ziel_from_vej_ziel",
 )

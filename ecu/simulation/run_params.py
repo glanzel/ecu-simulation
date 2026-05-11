@@ -58,7 +58,7 @@ class RunParams:
     (100 = kein Wachstum, 110 = +10 %, 90 = −10 % **pro Jahr**; pro Zeitschritt ``(Index/100)^(1/steps_per_year)``,
     vgl. ``run_simulation(..., steps_per_year=…)`` — Standard 12 Monate, später z. B. 365 täglich).
     ``start_demand``: Anteil der VEJ in % (Anteil = p/100).
-    ``price_max_bundle_scale_pct`` (optional): p in % — u. a. weicher ECU-Ratchet, harter Σ p·VEJ-Pfad,
+    ``price_max_bundle_scale_pct`` (optional): p in % — u. a. weicher ECU-Ratchet, harter Σ p·VEJ-Ziel-Pfad,
     Rohpreis-Kappen; Standard aus ``PriceConfig``.
     ``price_elasticity_warmup_months`` (optional): Ab N abgeschlossenen Monaten Elastizität (OLS);
     gleiche N als Mindestzahl gültiger Historienpunkte; davor nur Bump + weiche Staffel.

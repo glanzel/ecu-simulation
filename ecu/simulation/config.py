@@ -19,15 +19,15 @@ _DEFAULT_LOG_NOISE_STD_FOR_CA_ONE_PERCENT: float = math.log(1.01)
 class SimulationConfig:
     """Startwerte für ECU-Jahresziel, dynamische Anpassung, Nachfrageparameter; Preislogik in ``price``."""
 
-    # Verteiltes ECU-Jahresvolumen (konstant): Ziel ``Σ p·VEJ = ecumenge_ziel_J``
+    # Verteiltes ECU-Jahresvolumen (konstant): Ziel ``Σ p·VEJ-Ziel = ecumenge_ziel_J``
     # über gemeinsame Preisskalierung, nicht durch Änderung der Jahresmenge.
     ecumenge_ziel_J: float = 100_000.0
     # Referenz-Schattenpreis p_ref,i (ECU/Einh.); Fallback: Start-Schattenpreis nach Normierung auf ecumenge_ziel_J
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
-    # Anteil f_i der VEJ: D_i(p_ref) = f_i·VET_i (Referenznachfrage; Startanker der Kurve).
-    # Start-Schattenpreise werden so normiert, dass Σ p·(f·VET) = ecumenge_ziel_J/12 (Referenzkonsum am Budget).
+    # Anteil f_i am VEJ-Ziel: D_i(p_ref) = f_i·vet_ziel_i (Referenznachfrage; Startanker der Kurve).
+    # Start-Schattenpreise werden so normiert, dass Σ p·(f·vej_ziel) = ecumenge_ziel_J (Referenzkonsum am Jahresbudget; monatlich f_i·vet_ziel_i).
     # Fehlende Schlüssel: ``BoundaryConstants.start_demand_percent`` / 100 je Grenze in ``ALL_BOUNDARIES``.
     start_demand_of_vej: Mapping[str, float] = field(default_factory=dict)
     # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(Z), Z ~ N(0, σ); σ wie Modulkonstante.
@@ -38,7 +38,7 @@ class SimulationConfig:
     random_seed: int | None = None
     # Kybernetik der Schattenpreise (Schattenpreisfindung aus Timeline)
     price: PriceConfig = field(default_factory=PriceConfig)
-    # Roh-Nachfrage gegen ECU-Obergrenze pro Monat: Σ p·c ≤ ecumenge_ziel_J/12 (keine VEJ-Logik im Budget)
+    # Roh-Nachfrage gegen ECU-Obergrenze pro Monat: Σ p·c ≤ ecumenge_ziel_J/12 (reine ECU-Kappung, kein vej_ziel im Budget)
     consumption_budget_method: ConsumptionBudgetMethod = ConsumptionBudgetMethod.SCALE
 
     def resolved_p_ref(self, initial_prices: dict[str, float]) -> dict[str, float]:

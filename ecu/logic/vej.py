@@ -1,11 +1,11 @@
-"""Berechnung der erlaubten Verschmutzungseinheiten pro Jahr (VEJ)."""
+"""Berechnung der erlaubten Verschmutzungseinheiten pro Jahr (VEJ-Ziel je Grenze)."""
 
 from __future__ import annotations
 
 
 def compute_vej(AG: float, VK: float, RZ: float) -> float:
     """
-    VEJ = (AG − VK) / RZ
+    VEJ-Ziel (Jahr) = (AG − VK) / RZ
 
     Erfordert RZ > 0. Ergebnis >= 0.
     """

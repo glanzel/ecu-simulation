@@ -11,7 +11,7 @@ from ecu.simulation.simulation import PeriodResult
 
 WARMUP_DIAG_TABLE_HEADER: list[str] = [
     "Mon",
-    "Σ p·VET-Soll (Mon.)",
+    "Σ p·VET-Ziel (Mon.)",
     "ecumenge_ziel_sim_J/12",
     "Δ Monat",
     "Δ Jahr",
@@ -55,7 +55,7 @@ class BoundaryTotalSummary:
     sum_demand_ref: float
     sum_pc: float
     vej_ziel: float
-    pct_vej_ist_jahr_vs_ziel: float
+    pct_vej_ist_jahr_vs_vej_ziel: float
 
 
 @dataclass
@@ -69,7 +69,7 @@ class BoundaryYearSummary:
     sum_demand_ref: float
     sum_pc: float
     vej_ziel: float
-    pct_vej_ist_jahr_vs_ziel: float
+    pct_vej_ist_jahr_vs_vej_ziel: float
 
 
 def yearly_ecu_summaries(results: list[PeriodResult]) -> list[YearlyEcuSummary]:
@@ -106,7 +106,7 @@ def boundary_total_summary(results: list[PeriodResult], boundary_key: str) -> Bo
             sum_demand_ref=0.0,
             sum_pc=0.0,
             vej_ziel=0.0,
-            pct_vej_ist_jahr_vs_ziel=float("nan"),
+            pct_vej_ist_jahr_vs_vej_ziel=float("nan"),
         )
     sum_c = sum(r.vej_ist[boundary_key] for r in results)
     sum_d = sum(r.demand_at_reference_price[boundary_key] for r in results)
@@ -119,7 +119,7 @@ def boundary_total_summary(results: list[PeriodResult], boundary_key: str) -> Bo
         sum_demand_ref=sum_d,
         sum_pc=sum_pc,
         vej_ziel=vej_ziel,
-        pct_vej_ist_jahr_vs_ziel=pct,
+        pct_vej_ist_jahr_vs_vej_ziel=pct,
     )
 
 
@@ -145,7 +145,7 @@ def boundary_year_summaries(results: list[PeriodResult], boundary_key: str) -> l
                 sum_demand_ref=sum_d,
                 sum_pc=sum_pc,
                 vej_ziel=vej_ziel,
-                pct_vej_ist_jahr_vs_ziel=pct,
+                pct_vej_ist_jahr_vs_vej_ziel=pct,
             )
         )
     return rows
@@ -170,9 +170,9 @@ def warmup_diagnostic_table_rows(results: list[PeriodResult]) -> list[list[str]]
     """Zeilen für Tabelle Warmup: ``Σ p·VET`` (Monat) vs. ``ecumenge_ziel_sim_J/12`` (CLI/Web)."""
     rrows: list[list[str]] = []
     for r in results:
-        if r.warmup_diag_sum_p_vet_soll_monthly is None or r.warmup_diag_ecumenge_ziel_sim_monthly is None:
+        if r.warmup_diag_sum_p_vet_ziel_monthly is None or r.warmup_diag_ecumenge_ziel_sim_monthly is None:
             continue
-        sm = r.warmup_diag_sum_p_vet_soll_monthly
+        sm = r.warmup_diag_sum_p_vet_ziel_monthly
         em = r.warmup_diag_ecumenge_ziel_sim_monthly
         d_m = sm - em
         d_y = d_m * float(MONTHS_PER_YEAR)

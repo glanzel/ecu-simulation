@@ -1,13 +1,13 @@
 """
 Schattenpreise (ECU pro Einheit Kontrollvariable) mit Kopplung an die ECU-Jahresbilanz:
 
-  Σ_i p_i · VEJ_i = ecumenge_ziel_J  (konfiguriertes Jahresbudget)
+  Σ_i p_i · vej_ziel_i = ecumenge_ziel_J  (konfiguriertes Jahresbudget)
 
-Rohpreise aus der Timeline (VET-Überschreitung → Bump bzw. nach Warmup OLS-η). Danach
+Rohpreise aus der Timeline (``vej_ist`` oberhalb ``vet_ziel`` → Bump bzw. nach Warmup OLS-η). Danach
 Normierung in ``advance_shadow_prices`` (Warmup: siehe Docstring dort).
 
 Normierung in ``advance_shadow_prices``: **Warmup** (erste N Beobachtungen, ``max_pct > 0``): nur
-pro-Grenzen-Klemme, kein ``Σ p·VEJ``-Match. **Weicher** ECU-Pfad: Ratchet + ``scale_percentual_to_ecu``
+pro-Grenzen-Klemme, kein ``Σ p·VEJ-Ziel``-Match. **Weicher** ECU-Pfad: Ratchet + ``scale_percentual_to_ecu``
 ohne Grenz-Multiplikatoren (± ``p`` % Bündel-Schritt). **Harter** Pfad: ``scale_percentual_to_ecu``
 mit Überschuss-Relativierung; bei ``max_pct = 0`` direkt ``scale_budget_to_ecu``.
 """
@@ -28,13 +28,13 @@ from ecu.logic.price_config import PriceConfig
 if TYPE_CHECKING:
     from ecu.simulation.config import SimulationConfig
 
-# --- Bundles und Skalierung Richtung Σ p·VEJ / Σ p·f·VEJ -----------------------------------------
+# --- Bundles und Skalierung Richtung Σ p·VEJ-Ziel / Σ p·f·VEJ-Ziel -----------------------------------------
 
 
 
-def bundle_p_times_vet_soll_monthly(prices: dict[str, float], vet_soll: dict[str, float]) -> float:
-    """Monatlicher ECU-Wert bei voller Ausnutzung des VET-Solls: ``Σ_i p_i·VET-Soll_i``."""
-    return sum(prices[k] * vet_soll[k] for k in BOUNDARY_KEYS)
+def bundle_p_times_vet_ziel(prices: dict[str, float], vet_ziel: dict[str, float]) -> float:
+    """Monatlicher ECU-Wert bei voller Ausnutzung von ``vet_ziel``: ``Σ_i p_i·vet_ziel_i``."""
+    return sum(prices[k] * vet_ziel[k] for k in BOUNDARY_KEYS)
 
 
 def bundle_value(prices: dict[str, float], quantities: dict[str, float]) -> float:
@@ -48,7 +48,7 @@ def bundle_value_at_vej_ziel_fractions(
     prices: dict[str, float], vej_ziel: dict[str, float], fraction_of_vej_ziel: dict[str, float]
 ) -> float:
     """
-    ``Σ_i p_i · f_i · VEJ-Ziel_i`` (ECU pro Jahr); Referenzkonsum monatlich ``f_i · VET-Soll_i``.
+    ``Σ_i p_i · f_i · vej_ziel_i`` (ECU pro Jahr); Referenzkonsum monatlich ``f_i · vet_ziel_i``.
     """
     return sum(prices[k] * fraction_of_vej_ziel[k] * vej_ziel[k] for k in BOUNDARY_KEYS)
 
@@ -61,7 +61,7 @@ def scale_budget_to_ecu(prices: dict[str, float], vej_ziel: dict[str, float], ec
     """
     bundle_total = bundle_value(prices, vej_ziel)
     if bundle_total <= 0:
-        raise ValueError("Summe p·VEJ muss positiv sein.")
+        raise ValueError("Summe p·VEJ-Ziel muss positiv sein.")
     scale_factor = ecumenge_ziel_J / bundle_total
     return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
@@ -117,8 +117,8 @@ def scale_percentual_to_ecu(
     Rohpreise ``prices_new`` (geratene neue Verhältnisse aus der Timeline) einheitlich skalieren:
     ``p' = s · p_new`` — die **relativen** Verhältnisse der neuen Preise bleiben erhalten.
 
-    ``bundle_previous`` ist ``Σ p_alt · VEJ-Ziel`` zu den **zuletzt gültigen** Schattenpreisen (letzte Periode);
-    das neue Bündel ist ``B_neu(s) = s · B_roh`` mit ``B_roh = Σ p_new · VEJ-Ziel``.
+    ``bundle_previous`` ist ``Σ p_alt · vej_ziel`` zu den **zuletzt gültigen** Schattenpreisen (letzte Periode);
+    das neue Bündel ist ``B_neu(s) = s · B_roh`` mit ``B_roh = Σ p_new · vej_ziel``.
 
     Zielrichtung ECU: ``s_ecu = ecumenge_ziel_J / B_roh``. Zusätzlich soll sich das Bündel gegenüber
     dem **vorigen Zeitschritt** höchstens um ``p`` Prozent ändern (``p`` = ``max_scale_pct_per_period``):
@@ -137,9 +137,9 @@ def scale_percentual_to_ecu(
         adjusted = {k: prices_new[k] * mult[k] for k in BOUNDARY_KEYS}
     bundle_raw = bundle_value(adjusted, vej_ziel)
     if bundle_raw <= 0:
-        raise ValueError("Summe p·VEJ der Rohpreise muss positiv sein.")
+        raise ValueError("Summe p·VEJ-Ziel der Rohpreise muss positiv sein.")
     if bundle_previous <= 0:
-        raise ValueError("Referenz-Bündel Σ p_alt·VEJ muss positiv sein.")
+        raise ValueError("Referenz-Bündel Σ p_alt·VEJ-Ziel muss positiv sein.")
     half_band = max_scale_pct_per_period / 100.0
     s_ecu = ecumenge_ziel_J / bundle_raw
     s_min = bundle_previous * (1.0 - half_band) / bundle_raw
@@ -157,8 +157,8 @@ def initial_shadow_prices_for_ecu(
     """
     Start-Schattenpreise: Rohpreise aus Auslastungs-Proxy ``fraction_of_vej_ziel`` (je ``u_i``),
     Normierung mit ``scale_to_ecu_budget_at_vej_ziel_fractions``, sodass
-    ``Σ p_i · f_i · VEJ-Ziel_i = ecumenge_budget_J`` — bei ``p = p_ref`` kostet der
-    Referenzkonsum ``f_i · VET-Soll_i`` genau ``ecumenge_budget_J/12`` pro Monat.
+    ``Σ p_i · f_i · vej_ziel_i = ecumenge_budget_J`` — bei ``p = p_ref`` kostet der
+    Referenzkonsum ``f_i · vet_ziel_i`` genau ``ecumenge_budget_J/12`` pro Monat.
     ``ecumenge_budget_J`` ist die wirksame Jahres-ECU-Menge (typ. ``ecumenge_ziel_sim_J`` =
     ``max(ecumenge_ziel_J, ecumenge_J)`` am Laufstart), nicht nur das konfigurierte Ziel.
     """
@@ -183,14 +183,14 @@ def scale_to_ecu_budget_at_vej_ziel_fractions(
 ) -> dict[str, float]:
     """
     Gemeinsamer Faktor auf allen Preisen, sodass
-    ``Σ_i p_i · f_i · VEJ-Ziel_i = ecumenge_budget_J`` (Referenzkonsum zu ``f_i`` füllt
+    ``Σ_i p_i · f_i · vej_ziel_i = ecumenge_budget_J`` (Referenzkonsum zu ``f_i`` füllt
     monatlich ``Σ p·vej_ist = ecumenge_budget_J/12`` am Referenzpreisvektor).
 
     Eine exakte Normierung (Startpreise).
     """
     bundle_total = bundle_value_at_vej_ziel_fractions(prices, vej_ziel, fraction_of_vej_ziel)
     if bundle_total <= 0:
-        raise ValueError("Summe p·VEJ·f muss positiv sein.")
+        raise ValueError("Summe p·VEJ-Ziel·f muss positiv sein.")
     scale_factor = ecumenge_budget_J / bundle_total
     return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
@@ -225,21 +225,21 @@ def _clamp_shadow_prices_vs_last_by_utilization_share(
     return out
 
 
-def vej_ist_all_below_vet_soll(vej_ist: dict[str, float], vet_soll: dict[str, float], tol: float) -> bool:
+def vej_ist_all_below_vet_ziel(vej_ist: dict[str, float], vet_ziel: dict[str, float], tol: float) -> bool:
     """
-    Prüft, ob der Ist-Verbrauch an jeder Grenze das VET-Soll (Monat) nicht übersteigt.
+    Prüft, ob der Ist-Verbrauch an jeder Grenze das monatliche VET-Ziel nicht übersteigt.
 
-    Gibt ``True`` zurück, wenn für alle Grenzen ``vej_ist_i ≤ vet_soll_i + tol`` gilt.
+    Gibt ``True`` zurück, wenn für alle Grenzen ``vej_ist_i ≤ vet_ziel_i + tol`` gilt.
     """
-    return all(vej_ist[k] <= vet_soll[k] + tol for k in BOUNDARY_KEYS)
+    return all(vej_ist[k] <= vet_ziel[k] + tol for k in BOUNDARY_KEYS)
 
 
 def _mean_boundary_utilization_last_interval(timeline: ConsumptionTimeline) -> float:
-    """Mittel aus VEJ-Ist / VET-Soll je Grenze im letzten Intervall."""
+    """Mittel aus VEJ-Ist / VET-Ziel je Grenze im letzten Intervall."""
     last = timeline.last
     parts: list[float] = []
     for k in BOUNDARY_KEYS:
-        v = last.vet_soll_for(k)
+        v = last.vet_ziel_for(k)
         c = last.vej_ist_for(k)
         parts.append(c / v if v > 0.0 else 0.0)
     return sum(parts) / float(len(BOUNDARY_KEYS))
@@ -308,9 +308,9 @@ def _implied_elasticity_for_boundary(timeline: ConsumptionTimeline, boundary_key
 
 def _raw_shadow_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str, float]:
     """
-    Roh-Schattenpreise vor Normierung auf ``Σ p·VEJ = ecumenge_ziel_J``.
+    Roh-Schattenpreise vor Normierung auf ``Σ p·VEJ-Ziel = ecumenge_ziel_J``.
 
-    Unter VET: letzte Schattenpreise unverändert. Bei Überschreitung: Bump bzw. nach
+    Unterhalb des monatlichen VET-Ziels: letzte Schattenpreise unverändert. Bei Überschreitung: Bump bzw. nach
     ``price_elasticity_warmup_months`` Elastizität (OLS). ECU-Normierung in ``advance_shadow_prices``.
     """
     if len(timeline) == 0:
@@ -325,11 +325,11 @@ def _raw_shadow_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str,
         bump_cap = 1.0 + 2.0 * (max_s / 100.0)
         default_price_multiplier = min(default_price_multiplier, bump_cap)
 
-    vet_soll_last = {k: last_interval.vet_soll_for(k) for k in BOUNDARY_KEYS}
+    vet_ziel_last = {k: last_interval.vet_ziel_for(k) for k in BOUNDARY_KEYS}
     shadow_prices_last = {k: last_interval.price_for(k) for k in BOUNDARY_KEYS}
     vej_ist_last = {k: last_interval.vej_ist_for(k) for k in BOUNDARY_KEYS}
 
-    if vej_ist_all_below_vet_soll(vej_ist_last, vet_soll_last, tol):
+    if vej_ist_all_below_vet_ziel(vej_ist_last, vet_ziel_last, tol):
         return {k: float(shadow_prices_last[k]) for k in BOUNDARY_KEYS}
 
     candidate_prices = {k: shadow_prices_last[k] for k in BOUNDARY_KEYS}
@@ -337,8 +337,8 @@ def _raw_shadow_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str,
     in_warmup = len(timeline) < price_cfg.price_elasticity_warmup_months
 
     for boundary_key in BOUNDARY_KEYS:
-        if vej_ist_last[boundary_key] <= vet_soll_last[boundary_key] + tol:
-            eta_debug_parts.append(f"{boundary_key}=≤VET-Soll")
+        if vej_ist_last[boundary_key] <= vet_ziel_last[boundary_key] + tol:
+            eta_debug_parts.append(f"{boundary_key}=≤VET-Ziel")
             continue
 
         price_multiplier = default_price_multiplier
@@ -347,9 +347,9 @@ def _raw_shadow_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str,
         if not in_warmup and len(timeline) >= 2:
             implied_elasticity = _implied_elasticity_for_boundary(timeline, boundary_key, price_cfg)
             if implied_elasticity is not None:
-                vet_over_vej_ist = vet_soll_last[boundary_key] / vej_ist_last[boundary_key]
-                if 0.0 < vet_over_vej_ist < 1.0:
-                    multiplier_from_elasticity = math.exp(math.log(vet_over_vej_ist) / implied_elasticity)
+                vet_ziel_over_vej_ist = vet_ziel_last[boundary_key] / vej_ist_last[boundary_key]
+                if 0.0 < vet_ziel_over_vej_ist < 1.0:
+                    multiplier_from_elasticity = math.exp(math.log(vet_ziel_over_vej_ist) / implied_elasticity)
                     mult_min, mult_max = price_cfg.price_step_multiplier_clip
                     price_multiplier = max(mult_min, min(mult_max, multiplier_from_elasticity))
                     branch = "eta"
@@ -376,12 +376,12 @@ def advance_shadow_prices(
     """
     Legt die Schattenpreise fest, **bevor** in dieser Periode konsumiert wird.
 
-    - **Leere Timeline** (erster Monat): ``initial_shadow_prices_for_ecu`` (``Σ p·f·VEJ =`` wirksames Jahresbudget, ``timeline.ecumenge_ziel_sim_J`` falls gesetzt, sonst ``ecumenge_ziel_J``).
+    - **Leere Timeline** (erster Monat): ``initial_shadow_prices_for_ecu`` (``Σ p·f·VEJ-Ziel =`` wirksames Jahresbudget, ``timeline.ecumenge_ziel_sim_J`` falls gesetzt, sonst ``ecumenge_ziel_J``).
     - **Sonst**: Rohpreise aus ``_raw_shadow_prices_from_timeline``.
     - **Warmup** (``len(timeline) < price_elasticity_warmup_months`` und ``max_pct > 0``): nur
       ``_clamp_shadow_prices_vs_last_by_utilization_share`` auf den Rohpreisen (keine Normierung auf
-      ``Σ p·VEJ = ecumenge_ziel_J``); bei hoher Auslastung wie im weichen Pfad Ratchet auf ``ecumenge_ziel_sim_J``
-      und ``ecumenge_T_override``. Zusätzlich ``warmup_diag_*`` für ``Σ p·VET`` vs. Soll/Monat.
+      ``Σ p·VEJ-Ziel = ecumenge_ziel_J``); bei hoher Auslastung wie im weichen Pfad Ratchet auf ``ecumenge_ziel_sim_J``
+      und ``ecumenge_T_override``. Zusätzlich ``warmup_diag_*`` für ``Σ p·vet_ziel`` vs. Referenz/Monat.
     - **Nach Warmup**: **weicher** Pfad bei hoher Auslastung: Ratchet + gleiche Nutzungs-Klemme wie im Warmup auf
       Rohpreise, dann schrittweise Annäherung von ``Σ p·VEJ-Ziel`` an ``ecumenge_ziel_sim_J`` mit
       ``scale_percentual_to_ecu`` (± ``p`` % ggü. Vorperiode, ohne grenzenweise Roh-Multiplikatoren).
@@ -403,8 +403,8 @@ def advance_shadow_prices(
 
     price_cfg = timeline.price_config
     last_interval = timeline.last
-    vet_soll_last = {k: last_interval.vet_soll_for(k) for k in BOUNDARY_KEYS}
-    timeline.warmup_diag_sum_p_vet_soll_monthly = None
+    vet_ziel_last = {k: last_interval.vet_ziel_for(k) for k in BOUNDARY_KEYS}
+    timeline.warmup_diag_sum_p_vet_ziel_monthly = None
     timeline.warmup_diag_ecumenge_ziel_sim_monthly = None
 
     raw = _raw_shadow_prices_from_timeline(timeline)
@@ -414,7 +414,7 @@ def advance_shadow_prices(
     max_pct = price_cfg.max_shadow_bundle_scale_pct_per_period
     threshold = mean_utilization_soft_path_threshold(max_pct)
     u_by = {
-        k: (last_interval.vej_ist_for(k) / vet_soll_last[k]) if vet_soll_last[k] > 0.0 else 0.0
+        k: (last_interval.vej_ist_for(k) / vet_ziel_last[k]) if vet_ziel_last[k] > 0.0 else 0.0
         for k in BOUNDARY_KEYS
     }
 
@@ -429,7 +429,7 @@ def advance_shadow_prices(
             timeline.ecumenge_T_override = None
         p_w = _clamp_shadow_prices_vs_last_by_utilization_share(raw, prices_last, u_by, mean_u, max_pct)
         timeline.prices_for_next_consumption = p_w
-        timeline.warmup_diag_sum_p_vet_soll_monthly = bundle_p_times_vet_soll_monthly(p_w, vet_soll_last)
+        timeline.warmup_diag_sum_p_vet_ziel_monthly = bundle_p_times_vet_ziel(p_w, vet_ziel_last)
         timeline.warmup_diag_ecumenge_ziel_sim_monthly = timeline.ecumenge_ziel_sim_J / float(MONTHS_PER_YEAR)
         return timeline
 

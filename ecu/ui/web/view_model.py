@@ -24,8 +24,8 @@ class MonthRow:
     vej_ist: float
     pc: float
     demand: float
-    vet_soll: float
-    pct_vet_soll: float
+    vet_ziel: float
+    pct_vet_ziel: float
 
 
 @dataclass
@@ -50,7 +50,7 @@ def _month_rows_for_boundary(
     for r in results:
         p = r.prices[boundary_key]
         c = r.vej_ist[boundary_key]
-        v = r.vet_soll[boundary_key]
+        v = r.vet_ziel[boundary_key]
         pc = p * c
         pct = (100.0 * c / v) if v > 0 else float("nan")
         rows.append(
@@ -60,8 +60,8 @@ def _month_rows_for_boundary(
                 vej_ist=c,
                 pc=pc,
                 demand=r.demand_at_reference_price[boundary_key],
-                vet_soll=v,
-                pct_vet_soll=pct,
+                vet_ziel=v,
+                pct_vet_ziel=pct,
             )
         )
     return rows

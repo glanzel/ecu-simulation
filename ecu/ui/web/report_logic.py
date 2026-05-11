@@ -30,8 +30,8 @@ STYLE_COLS_7_EQ: str = "grid-template-columns: repeat(7, minmax(0, 1fr))"
 REPORT_GAP: str = "gap-1"
 
 RUN_PARAMS_HDR: list[str] = ["ecumenge_ziel_J", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
-YEARLY_ECU_HDR: list[str] = ["Jahr", "Ecu VEJ-Soll ges. (Jahr)", "Slack", "Ø Auslast."]
-MONTH_HDR: list[str] = ["Mon", "p", "VEJ-Ist", "Ecu VEJ-Ist", "Demand", "VET-Soll", "Ist / VET-Soll %"]
+YEARLY_ECU_HDR: list[str] = ["Jahr", "Ecu VEJ-Ziel ges. (Jahr)", "Slack", "Ø Auslast."]
+MONTH_HDR: list[str] = ["Mon", "p", "VEJ-Ist", "Ecu VEJ-Ist", "Demand", "VET-Ziel", "Ist / VET-Ziel %"]
 YEAR_HDR: list[str] = ["Jahr", "Ø p", "Σ VEJ-Ist", "Σ Demand", "Σ Ecu VEJ-Ist", "VEJ-Ziel", "Σ Ist / Ziel %"]
 BOUNDARY_SUMMARY_HDR: list[str] = ["Grenze", "Σ VEJ-Ist", "Σ Demand", "Σ Ecu VEJ-Ist", "VEJ-Ziel", "Σ Ist / Ziel %"]
 
@@ -116,8 +116,8 @@ def month_table_rows(months: list[MonthRow]) -> list[list[str]]:
                 fmt_num(m.vej_ist),
                 fmt_num(m.pc),
                 fmt_num(m.demand),
-                fmt_num(m.vet_soll),
-                fmt_pct(m.pct_vet_soll),
+                fmt_num(m.vet_ziel),
+                fmt_pct(m.pct_vet_ziel),
             ]
         )
     return rrows
@@ -131,7 +131,7 @@ def year_summary_values(ys: BoundaryYearSummary) -> list[str]:
         fmt_num(ys.sum_demand_ref),
         fmt_num(ys.sum_pc),
         fmt_num(ys.vej_ziel),
-        fmt_pct(ys.pct_vej_ist_jahr_vs_ziel),
+        fmt_pct(ys.pct_vej_ist_jahr_vs_vej_ziel),
     ]
 
 
@@ -143,5 +143,5 @@ def boundary_summary_row(section: BoundarySection) -> list[str]:
         fmt_num(t.sum_demand_ref),
         fmt_num(t.sum_pc),
         fmt_num(t.vej_ziel),
-        fmt_pct(t.pct_vej_ist_jahr_vs_ziel),
+        fmt_pct(t.pct_vej_ist_jahr_vs_vej_ziel),
     ]

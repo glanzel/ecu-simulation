@@ -3,7 +3,7 @@ Preislogik: zwei getrennte Prüfgruppen.
 
 **A — ECU-weicher Pfad (Jahressoll effektiv)**  
 Ratchet auf ``ecumenge_ziel_sim_J`` / Monatsdeckel; Nutzungs-Klemme auf Rohpreise wie im Warmup,
-danach ``Σ p·VEJ`` nur schrittweise (± ``p`` %/Periode) Richtung effektivem Budget.
+danach ``Σ p·VEJ-Ziel`` nur schrittweise (± ``p`` %/Periode) Richtung effektivem Budget.
 
 **B — Rohpreise je Grenze**  
 - Vor ``price_elasticity_warmup_months``: keine Elastizität (nur Bump in ``_raw_shadow_prices``).
@@ -38,7 +38,7 @@ from ecu.logic.prices import (
     ratchet_ecumenge_ziel_sim_J,
     scale_percentual_to_ecu,
 )
-from ecu.simulation.simulation import build_vej_ziel_bundle, vet_soll_from_vej_ziel
+from ecu.simulation.simulation import build_vej_ziel_bundle, vet_ziel_from_vej_ziel
 
 
 def test_mean_u_2_2_exceeds_soft_path_threshold_for_p_1():
@@ -57,14 +57,14 @@ def test_ratchet_ecumenge_ziel_sim_J_one_percent_floor():
 
 
 def test_advance_shadow_prices_soft_ecu_path_ratchet_and_bundle():
-    """Gruppe A: weicher Pfad — Ratchet −1 %; ``Σ p·VEJ`` nur schrittweise Richtung effektivem Soll (±p %/Periode)."""
+    """Gruppe A: weicher Pfad — Ratchet −1 %; ``Σ p·VEJ-Ziel`` nur schrittweise Richtung effektivem Soll (±p %/Periode)."""
     vej_ziel = build_vej_ziel_bundle()
-    vet_soll = vet_soll_from_vej_ziel(vej_ziel)
+    vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     frac = {k: 1.0 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
     ecu_start_effective = 150_000.0
     p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
-    vej_ist = {k: 2.2 * vet_soll[k] for k in BOUNDARY_KEYS}
+    vej_ist = {k: 2.2 * vet_ziel[k] for k in BOUNDARY_KEYS}
     pc = PriceConfig(
         max_shadow_bundle_scale_pct_per_period=1.0,
         price_elasticity_warmup_months=1,
@@ -75,7 +75,7 @@ def test_advance_shadow_prices_soft_ecu_path_ratchet_and_bundle():
         ecumenge_ziel_J_konfig=ecu_cfg,
         ecumenge_ziel_sim_J=ecu_start_effective,
     )
-    tl.append(ConsumptionInterval.from_observation(1, DAYS_PER_MONTH, p0, vej_ist, vet_soll))
+    tl.append(ConsumptionInterval.from_observation(1, DAYS_PER_MONTH, p0, vej_ist, vet_ziel))
     bundle_prev = bundle_value(p0, vej_ziel)
     advance_shadow_prices(tl, vej_ziel, frac)
     expected_effective = ratchet_ecumenge_ziel_sim_J(ecu_start_effective, ecu_cfg, 1.0)
@@ -85,7 +85,7 @@ def test_advance_shadow_prices_soft_ecu_path_ratchet_and_bundle():
     half = pc.max_shadow_bundle_scale_pct_per_period / 100.0
     assert bundle_prev * (1.0 - half) - 1e-6 <= bundle <= bundle_prev * (1.0 + half) + 1e-6
     prices_last = {k: p0[k] for k in BOUNDARY_KEYS}
-    u_by = {k: vej_ist[k] / vet_soll[k] for k in BOUNDARY_KEYS}
+    u_by = {k: vej_ist[k] / vet_ziel[k] for k in BOUNDARY_KEYS}
     raw = _raw_shadow_prices_from_timeline(tl)
     clamped = _clamp_shadow_prices_vs_last_by_utilization_share(raw, prices_last, u_by, 2.2, pc.max_shadow_bundle_scale_pct_per_period)
     expected_bundle = bundle_value(
@@ -116,7 +116,7 @@ def test_utilization_share_relative_half_band_formula():
 def test_raw_prices_warmup_overshoot_then_utilization_clamp_on_raw():
     """Gruppe B: Bump 1,08 auf eine Grenze, danach Hilfsklemme ``_clamp_shadow…`` wie in isolierter Nachbearbeitung."""
     vej_ziel = build_vej_ziel_bundle()
-    vet_soll = vet_soll_from_vej_ziel(vej_ziel)
+    vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     frac = {k: 0.5 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
     p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
@@ -128,17 +128,17 @@ def test_raw_prices_warmup_overshoot_then_utilization_clamp_on_raw():
     tl = ConsumptionTimeline(ecumenge_ziel_J=ecu_cfg, price_config=pc)
     k0 = BOUNDARY_KEYS[0]
     for m in range(1, 4):
-        c = {k: 0.5 * vet_soll[k] for k in BOUNDARY_KEYS}
-        tl.append(ConsumptionInterval.from_observation(m, DAYS_PER_MONTH, p0, c, vet_soll))
+        c = {k: 0.5 * vet_ziel[k] for k in BOUNDARY_KEYS}
+        tl.append(ConsumptionInterval.from_observation(m, DAYS_PER_MONTH, p0, c, vet_ziel))
         p0 = dict(tl.last.shadow_prices_map())
-    c_last = {k: 0.5 * vet_soll[k] for k in BOUNDARY_KEYS}
-    c_last[k0] = 1.2 * vet_soll[k0]
-    tl.append(ConsumptionInterval.from_observation(4, DAYS_PER_MONTH, p0, c_last, vet_soll))
+    c_last = {k: 0.5 * vet_ziel[k] for k in BOUNDARY_KEYS}
+    c_last[k0] = 1.2 * vet_ziel[k0]
+    tl.append(ConsumptionInterval.from_observation(4, DAYS_PER_MONTH, p0, c_last, vet_ziel))
     raw = _raw_shadow_prices_from_timeline(tl)
     last_iv = tl.last
-    vet_last = {k: last_iv.vet_soll_for(k) for k in BOUNDARY_KEYS}
+    vz_monat_last = {k: last_iv.vet_ziel_for(k) for k in BOUNDARY_KEYS}
     prices_last = {k: last_iv.price_for(k) for k in BOUNDARY_KEYS}
-    u_by = {k: (c_last[k] / vet_last[k]) if vet_last[k] > 0.0 else 0.0 for k in BOUNDARY_KEYS}
+    u_by = {k: (c_last[k] / vz_monat_last[k]) if vz_monat_last[k] > 0.0 else 0.0 for k in BOUNDARY_KEYS}
     mean_u = sum(u_by[k] for k in BOUNDARY_KEYS) / float(len(BOUNDARY_KEYS))
     raw_c = _clamp_shadow_prices_vs_last_by_utilization_share(raw, prices_last, u_by, mean_u, 1.0)
     p_last_k0 = prices_last[k0]
@@ -149,18 +149,18 @@ def test_raw_prices_warmup_overshoot_then_utilization_clamp_on_raw():
 def test_elasticity_not_called_before_warmup_months():
     """Gruppe B: während Warmup kein Elastizitätsaufruf."""
     vej_ziel = build_vej_ziel_bundle()
-    vet_soll = vet_soll_from_vej_ziel(vej_ziel)
+    vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     frac = {k: 0.5 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
     p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
     pc = PriceConfig(price_elasticity_warmup_months=5, max_shadow_bundle_scale_pct_per_period=1.0)
     tl = ConsumptionTimeline(ecumenge_ziel_J=ecu_cfg, price_config=pc)
     for m in range(1, 4):
-        vej_ist = {k: 0.5 * vet_soll[k] for k in BOUNDARY_KEYS}
-        tl.append(ConsumptionInterval.from_observation(m, DAYS_PER_MONTH, p0, vej_ist, vet_soll))
+        vej_ist = {k: 0.5 * vet_ziel[k] for k in BOUNDARY_KEYS}
+        tl.append(ConsumptionInterval.from_observation(m, DAYS_PER_MONTH, p0, vej_ist, vet_ziel))
         p0 = dict(tl.last.shadow_prices_map())
-    c_last = {k: 1.1 * vet_soll[k] for k in BOUNDARY_KEYS}
-    tl.append(ConsumptionInterval.from_observation(4, DAYS_PER_MONTH, p0, c_last, vet_soll))
+    c_last = {k: 1.1 * vet_ziel[k] for k in BOUNDARY_KEYS}
+    tl.append(ConsumptionInterval.from_observation(4, DAYS_PER_MONTH, p0, c_last, vet_ziel))
     with mock.patch("ecu.logic.prices._implied_elasticity_for_boundary") as spy:
         _raw_shadow_prices_from_timeline(tl)
     assert spy.call_count == 0
@@ -169,12 +169,12 @@ def test_elasticity_not_called_before_warmup_months():
 def test_warmup_price_path_clamped_only_no_scale_to_ecu():
     """Warmup: nur Klemme r_k + Ratchet; ``Σ p·VEJ-Ziel`` wird nicht auf ``ecumenge_ziel_sim_J`` gezwungen."""
     vej_ziel = build_vej_ziel_bundle()
-    vet_soll = vet_soll_from_vej_ziel(vej_ziel)
+    vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     frac = {k: 1.0 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
     ecu_start_effective = 150_000.0
     p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
-    vej_ist = {k: 2.2 * vet_soll[k] for k in BOUNDARY_KEYS}
+    vej_ist = {k: 2.2 * vet_ziel[k] for k in BOUNDARY_KEYS}
     pc = PriceConfig(max_shadow_bundle_scale_pct_per_period=1.0, price_elasticity_warmup_months=5)
     tl = ConsumptionTimeline(
         ecumenge_ziel_J=ecu_cfg,
@@ -182,11 +182,11 @@ def test_warmup_price_path_clamped_only_no_scale_to_ecu():
         ecumenge_ziel_J_konfig=ecu_cfg,
         ecumenge_ziel_sim_J=ecu_start_effective,
     )
-    tl.append(ConsumptionInterval.from_observation(1, DAYS_PER_MONTH, p0, vej_ist, vet_soll))
+    tl.append(ConsumptionInterval.from_observation(1, DAYS_PER_MONTH, p0, vej_ist, vet_ziel))
     advance_shadow_prices(tl, vej_ziel, frac)
     expected_ratchet = ratchet_ecumenge_ziel_sim_J(ecu_start_effective, ecu_cfg, 1.0)
     assert tl.ecumenge_ziel_sim_J == pytest.approx(expected_ratchet)
-    assert tl.warmup_diag_sum_p_vet_soll_monthly is not None
+    assert tl.warmup_diag_sum_p_vet_ziel_monthly is not None
     assert tl.warmup_diag_ecumenge_ziel_sim_monthly == pytest.approx(expected_ratchet / float(MONTHS_PER_YEAR))
     p = tl.prices_for_next_consumption
     assert p is not None
@@ -198,7 +198,7 @@ def test_warmup_price_path_clamped_only_no_scale_to_ecu():
 def test_elasticity_called_after_warmup_when_overshoot():
     """Gruppe B: nach Warmup wird Elastizität pro Grenze versucht (Aufruf je Grenze mit Überschreitung)."""
     vej_ziel = build_vej_ziel_bundle()
-    vet_soll = vet_soll_from_vej_ziel(vej_ziel)
+    vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     frac = {k: 0.5 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
     p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
@@ -209,11 +209,11 @@ def test_elasticity_called_after_warmup_when_overshoot():
     )
     tl = ConsumptionTimeline(ecumenge_ziel_J=ecu_cfg, price_config=pc)
     for m in range(1, 6):
-        vej_ist = {k: 0.5 * vet_soll[k] for k in BOUNDARY_KEYS}
-        tl.append(ConsumptionInterval.from_observation(m, DAYS_PER_MONTH, p0, vej_ist, vet_soll))
+        vej_ist = {k: 0.5 * vet_ziel[k] for k in BOUNDARY_KEYS}
+        tl.append(ConsumptionInterval.from_observation(m, DAYS_PER_MONTH, p0, vej_ist, vet_ziel))
         p0 = {k: max(1e-12, tl.last.price_for(k) * (1.002 if k == BOUNDARY_KEYS[0] else 1.0)) for k in BOUNDARY_KEYS}
-    c_last = {k: 1.15 * vet_soll[k] for k in BOUNDARY_KEYS}
-    tl.append(ConsumptionInterval.from_observation(6, DAYS_PER_MONTH, p0, c_last, vet_soll))
+    c_last = {k: 1.15 * vet_ziel[k] for k in BOUNDARY_KEYS}
+    tl.append(ConsumptionInterval.from_observation(6, DAYS_PER_MONTH, p0, c_last, vet_ziel))
     with mock.patch("ecu.logic.prices._implied_elasticity_for_boundary", wraps=_implied_elasticity_for_boundary) as spy:
         _raw_shadow_prices_from_timeline(tl)
     assert spy.call_count == len(BOUNDARY_KEYS)
