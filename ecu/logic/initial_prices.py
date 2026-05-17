@@ -1,7 +1,9 @@
 """
-Start-Schattenpreise aus relativen Gewichten und VEJ-Ziel (Bootstrap, erstes Jahr).
+Start-Schattenpreise: ``p_i = w_i · ecumenge / vej_ist_i`` (nur normierte Gewichte, keine Nachskalierung).
 
-Die eigentliche ECU-Normierung und Folgeperioden liegen in ``logic.prices``.
+``vej_ist_i`` hier der **jährliche** Referenz-Ist-Fluss (Verschmutzungseinheiten a⁻¹), im Modell
+``f_i · vej_ziel_i`` (= ``12 · f_i · vet_ziel_i``). Mit ``Σ w_i = 1`` gilt
+``Σ_i p_i · vej_ist_i = ecumenge``.
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ from typing import Mapping, Sequence
 
 from ecu.logic.observations import BOUNDARY_KEYS
 
-_MIN_UTILIZATION: float = 1e-9
+_MIN_VEJ_IST_J: float = 1e-15
 
 
 def initial_weights_uniform(n: int) -> list[float]:
@@ -54,15 +56,12 @@ def prices_from_weights(
     return shadow_prices
 
 
-def raw_initial_shadow_prices_from_utilization(
-    vej_ziel: dict[str, float],
-    ecumenge_ziel_J: float,
-    utilization_by_boundary: Mapping[str, float],
-    weights: Sequence[float],
+def initial_shadow_prices_from_vej_ist_J(
+    vej_ist_ref_J: Mapping[str, float], ecumenge_budget_J: float, weights: Sequence[float]
 ) -> dict[str, float]:
     """
-    Roh-Startpreise: ``p_i = w_i · (E_soll · u_avg) / (vej_ziel_i · max(u_i, ε))`` mit normierten
-    Gewichten ``w_i`` (Summe 1) und ``u_avg`` = Mittel der ``u_i`` je Grenze.
+    ``p_i = w_i · ecumenge_budget_J / max(ε, vej_ist_i)`` mit ``vej_ist_i`` in **Jahres**-VE (Referenzpfad).
+    Normierte Gewichte ``w_i`` (Summe 1): ``Σ_i p_i · vej_ist_i = ecumenge_budget_J``.
     """
     boundary_order = list(BOUNDARY_KEYS)
     if len(weights) != len(boundary_order):
@@ -71,16 +70,10 @@ def raw_initial_shadow_prices_from_utilization(
     if weight_sum <= 0:
         raise ValueError("Gewichte müssen positiv summieren.")
     normalized_weights = [wi / weight_sum for wi in weights]
-    u_safe = [max(_MIN_UTILIZATION, float(utilization_by_boundary[k])) for k in boundary_order]
-    u_avg = sum(u_safe) / float(len(u_safe))
-    if ecumenge_ziel_J <= 0:
-        raise ValueError("ecumenge_ziel_J muss positiv sein.")
+    if ecumenge_budget_J <= 0:
+        raise ValueError("ecumenge_budget_J muss positiv sein.")
     out: dict[str, float] = {}
     for index, boundary_key in enumerate(boundary_order):
-        vej_ziel_at = vej_ziel[boundary_key]
-        if vej_ziel_at <= 0:
-            raise ValueError(f"vej_ziel für {boundary_key} muss positiv sein.")
-        out[boundary_key] = (
-            normalized_weights[index] * ecumenge_ziel_J * u_avg / (vej_ziel_at * u_safe[index])
-        )
+        denom = max(_MIN_VEJ_IST_J, float(vej_ist_ref_J[boundary_key]))
+        out[boundary_key] = normalized_weights[index] * ecumenge_budget_J / denom
     return out

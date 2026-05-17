@@ -63,7 +63,7 @@ def test_advance_shadow_prices_soft_ecu_path_ratchet_and_bundle():
     frac = {k: 1.0 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
     ecu_start_effective = 150_000.0
-    p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
+    p0 = initial_shadow_prices_for_ecu(vej_ziel, frac, ecu_cfg)
     vej_ist = {k: 2.2 * vet_ziel[k] for k in BOUNDARY_KEYS}
     pc = PriceConfig(
         max_shadow_bundle_scale_pct_per_period=1.0,
@@ -119,7 +119,7 @@ def test_raw_prices_warmup_overshoot_then_utilization_clamp_on_raw():
     vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     frac = {k: 0.5 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
-    p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
+    p0 = initial_shadow_prices_for_ecu(vej_ziel, frac, ecu_cfg)
     pc = PriceConfig(
         max_shadow_bundle_scale_pct_per_period=1.0,
         price_elasticity_warmup_months=5,
@@ -152,7 +152,7 @@ def test_elasticity_not_called_before_warmup_months():
     vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     frac = {k: 0.5 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
-    p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
+    p0 = initial_shadow_prices_for_ecu(vej_ziel, frac, ecu_cfg)
     pc = PriceConfig(price_elasticity_warmup_months=5, max_shadow_bundle_scale_pct_per_period=1.0)
     tl = ConsumptionTimeline(ecumenge_ziel_J=ecu_cfg, price_config=pc)
     for m in range(1, 4):
@@ -173,7 +173,7 @@ def test_warmup_price_path_clamped_only_no_scale_to_ecu():
     frac = {k: 1.0 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
     ecu_start_effective = 150_000.0
-    p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
+    p0 = initial_shadow_prices_for_ecu(vej_ziel, frac, ecu_cfg)
     vej_ist = {k: 2.2 * vet_ziel[k] for k in BOUNDARY_KEYS}
     pc = PriceConfig(max_shadow_bundle_scale_pct_per_period=1.0, price_elasticity_warmup_months=5)
     tl = ConsumptionTimeline(
@@ -201,7 +201,7 @@ def test_elasticity_called_after_warmup_when_overshoot():
     vet_ziel = vet_ziel_from_vej_ziel(vej_ziel)
     frac = {k: 0.5 for k in BOUNDARY_KEYS}
     ecu_cfg = 100_000.0
-    p0 = initial_shadow_prices_for_ecu(vej_ziel, ecu_cfg, frac)
+    p0 = initial_shadow_prices_for_ecu(vej_ziel, frac, ecu_cfg)
     pc = PriceConfig(
         price_elasticity_warmup_months=5,
         max_shadow_bundle_scale_pct_per_period=1.0,

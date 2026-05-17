@@ -64,8 +64,10 @@ FOREST_REMAINING_PCT_GLOBAL_BOUNDARY: float = 75.0
 BLUE_WATER_STRESS_PCT_LAND_BOUNDARY: float = 10.2
 BLUE_WATER_STRESS_PCT_LAND_CURRENT: float = 18.2
 
-HANPP_PCT_CURRENT: float = 30.0
-HANPP_PCT_SAFE_TARGET: float = 10.0
+# Funktionale Biosphären-Integrität (HANPP-Code ``hanpp``): **Leseeinheit Mt C a⁻¹**
+# (anthropogene Kohlenstoff-Beanspruchung als Proxy; Grenze / Ist nach Projektvorgabe).
+HANPP_CARBON_BOUNDARY_MT_C_PER_YR: float = 5600.0
+HANPP_CARBON_CURRENT_MT_C_PER_YR: float = 15800.0
 
 # GCB: jährliche Änderung fossiler CO₂-Emissionen 2023→2024 (vorläufig, ±Unsicherheit).
 GCB2024_FOSSIL_CO2_GROWTH_PCT_YR: float = 0.8
@@ -139,7 +141,7 @@ def land_system_start_demand_percent() -> float:
 
 
 def hanpp_start_demand_percent() -> float:
-    return 100.0 * HANPP_PCT_CURRENT / HANPP_PCT_SAFE_TARGET
+    return 100.0 * HANPP_CARBON_CURRENT_MT_C_PER_YR / HANPP_CARBON_BOUNDARY_MT_C_PER_YR
 
 
 @dataclass(frozen=True)
@@ -328,24 +330,29 @@ LAND_SYSTEM = BoundaryConstants(
 
 HANPP = BoundaryConstants(
     key="hanpp",
-    label_de="HANPP (funktionale Biosphären-Integrität)",
-    unit_note="HANPP als % der holozänen NPP; Richardson et al. (2023) T1 (funktionale Komponente).",
-    consumption_unit_monthly="HANPP-Anteil Monat⁻¹",
-    AG=HANPP_PCT_SAFE_TARGET / 100.0,
+    label_de="Funktionale Biosphären-Integrität (Kohlenstoff-Beanspruchung)",
+    unit_note=(
+        "Anthropogene Kohlenstoff-Beanspruchung als Jahresfluss **Mt C a⁻¹** "
+        "(planetare Obergrenze vs. Status quo; Leseeinheit statt NPP-%). "
+        "Fachlich verwandt mit Richardson et al. (2023) T1 **HANPP**; hier numerischer "
+        "Proxy in Mt C a⁻¹ nach Projektvorgabe (Literaturbeleg für die Zahlen ergänzen)."
+    ),
+    consumption_unit_monthly="Mt C Monat⁻¹",
+    AG=HANPP_CARBON_BOUNDARY_MT_C_PER_YR,
     VK=0.0,
     RZ=1.0,
     literature_note=(
-        "Aktuell 30 % HANPP, Zielgröße <10 % des holozänen NPP-Flusses (T1); "
-        "HANPP-Methodik Haberl et al.; Running (2012) Science Diskussion."
+        "Planetare Grenze (Limit) **5 600 Mt C a⁻¹**, Status quo **15 800 Mt C a⁻¹** "
+        "(Projektkonstanten ``HANPP_CARBON_*``; Quelle im Modulkommentar nachreichen)."
     ),
     is_example=False,
     start_demand_percent=hanpp_start_demand_percent(),
-    annual_growth_percent=0.69,
+    annual_growth_percent=0.0,
     default_params_note=(
-        "start_demand_percent: 100×30/10 (Richardson T1: Ist 30 %, Ziel <10 %). "
-        "annual_growth_percent: +0,69 %/a ≈ ln(25/13)/95 aus globalem HANPP-Anteil "
-        "**~13 % (1910) → ~25 % (2005)** der potenziellen NPP (Krausmann et al., "
-        "PMC3690849, 2013); extrapoliert, **kein** Post-2005-Fit."
+        "start_demand_percent: 100×(15 800 Mt C a⁻¹)/(5 600 Mt C a⁻¹). "
+        "VEJ-Ziel = Grenzfluss 5 600 Mt C a⁻¹ (``AG``, ``RZ``=1), Monatswert ÷12. "
+        "annual_growth_percent: **0** bis ein belastbarer Jahrestrend für diesen "
+        "Mt-C-Proxy vorliegt (früher +0,69 %/a nur für den entfernten %-HANPP-Ansatz)."
     ),
 )
 

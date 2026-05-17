@@ -18,17 +18,14 @@ import math
 from typing import TYPE_CHECKING
 
 from ecu.logic.exchange import ExchangeRates, rates_from_prices
-from ecu.logic.initial_prices import (
-    initial_weights_uniform,
-    raw_initial_shadow_prices_from_utilization,
-)
+from ecu.logic.initial_prices import initial_shadow_prices_from_vej_ist_J, initial_weights_uniform
 from ecu.logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR, ConsumptionTimeline
 from ecu.logic.price_config import PriceConfig
 
 if TYPE_CHECKING:
     from ecu.simulation.config import SimulationConfig
 
-# --- Bundles und Skalierung Richtung Σ p·VEJ-Ziel / Σ p·f·VEJ-Ziel -----------------------------------------
+# --- Bundles und Skalierung (Σ p·q; Startpreise: Jahresformel in ``initial_prices``) ------------
 
 
 
@@ -42,15 +39,6 @@ def bundle_value(prices: dict[str, float], quantities: dict[str, float]) -> floa
     ``Σ_i p_i · q_i`` in ECU: ``q`` z. B. ``vej_ziel`` (Jahr) oder ``vej_ist`` (Monat), konsistent zu ``p``.
     """
     return sum(prices[k] * quantities[k] for k in BOUNDARY_KEYS)
-
-
-def bundle_value_at_vej_ziel_fractions(
-    prices: dict[str, float], vej_ziel: dict[str, float], fraction_of_vej_ziel: dict[str, float]
-) -> float:
-    """
-    ``Σ_i p_i · f_i · vej_ziel_i`` (ECU pro Jahr); Referenzkonsum monatlich ``f_i · vet_ziel_i``.
-    """
-    return sum(prices[k] * fraction_of_vej_ziel[k] * vej_ziel[k] for k in BOUNDARY_KEYS)
 
 
 def scale_budget_to_ecu(prices: dict[str, float], vej_ziel: dict[str, float], ecumenge_ziel_J: float) -> dict[str, float]:
@@ -152,47 +140,28 @@ def scale_percentual_to_ecu(
 
 
 def initial_shadow_prices_for_ecu(
-    vej_ziel: dict[str, float], ecumenge_budget_J: float, fraction_of_vej_ziel: dict[str, float]
+    vej_ziel: dict[str, float], fraction_of_vej_ziel: dict[str, float], ecumenge_budget_J: float
 ) -> dict[str, float]:
     """
-    Start-Schattenpreise: Rohpreise aus Auslastungs-Proxy ``fraction_of_vej_ziel`` (je ``u_i``),
-    Normierung mit ``scale_to_ecu_budget_at_vej_ziel_fractions``, sodass
-    ``Σ p_i · f_i · vej_ziel_i = ecumenge_budget_J`` — bei ``p = p_ref`` kostet der
-    Referenzkonsum ``f_i · vet_ziel_i`` genau ``ecumenge_budget_J/12`` pro Monat.
-    ``ecumenge_budget_J`` ist die wirksame Jahres-ECU-Menge (typ. ``ecumenge_ziel_sim_J`` =
-    ``max(ecumenge_ziel_J, ecumenge_J)`` am Laufstart), nicht nur das konfigurierte Ziel.
+    Start-Schattenpreise: ``p_i = w_i · ecumenge_budget_J / vej_ist_i`` mit jährlichem Referenz-``vej_ist_i`` =
+    ``f_i · vej_ziel_i`` (Startnachfrage am Jahresfluss). Normierte ``w_i = 1/n``; keine weitere Skalierung;
+    ``Σ_i p_i · vej_ist_i = ecumenge_budget_J``.
     """
-    raw = raw_initial_shadow_prices_from_utilization(
-        vej_ziel, ecumenge_budget_J, fraction_of_vej_ziel, initial_weights_uniform(len(BOUNDARY_KEYS))
+    vej_ist_ref_J = {k: float(fraction_of_vej_ziel[k]) * float(vej_ziel[k]) for k in BOUNDARY_KEYS}
+    return initial_shadow_prices_from_vej_ist_J(
+        vej_ist_ref_J, ecumenge_budget_J, initial_weights_uniform(len(BOUNDARY_KEYS))
     )
-    return scale_to_ecu_budget_at_vej_ziel_fractions(raw, vej_ziel, ecumenge_budget_J, fraction_of_vej_ziel)
 
 
 def reference_shadow_prices_for_demand(
     cfg: SimulationConfig, vej_ziel: dict[str, float], ecumenge_budget_J: float
 ) -> dict[str, float]:
     """
-    Referenzpreise für die Nachfragefunktion: Start-Schattenpreise (Normierung auf ``ecumenge_budget_J``), dann ``resolved_p_ref``.
+    Referenzpreise für die Nachfragefunktion: Start-Schattenpreise, dann ``resolved_p_ref``.
     """
-    initial = initial_shadow_prices_for_ecu(vej_ziel, ecumenge_budget_J, cfg.resolved_start_demand())
+    frac = cfg.resolved_start_demand()
+    initial = initial_shadow_prices_for_ecu(vej_ziel, frac, ecumenge_budget_J)
     return cfg.resolved_p_ref(initial)
-
-
-def scale_to_ecu_budget_at_vej_ziel_fractions(
-    prices: dict[str, float], vej_ziel: dict[str, float], ecumenge_budget_J: float, fraction_of_vej_ziel: dict[str, float]
-) -> dict[str, float]:
-    """
-    Gemeinsamer Faktor auf allen Preisen, sodass
-    ``Σ_i p_i · f_i · vej_ziel_i = ecumenge_budget_J`` (Referenzkonsum zu ``f_i`` füllt
-    monatlich ``Σ p·vej_ist = ecumenge_budget_J/12`` am Referenzpreisvektor).
-
-    Eine exakte Normierung (Startpreise).
-    """
-    bundle_total = bundle_value_at_vej_ziel_fractions(prices, vej_ziel, fraction_of_vej_ziel)
-    if bundle_total <= 0:
-        raise ValueError("Summe p·VEJ-Ziel·f muss positiv sein.")
-    scale_factor = ecumenge_budget_J / bundle_total
-    return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
 
 # --- Timeline: Rohpreise, Auslastung, Elastizität -----------------------------------------------
@@ -376,7 +345,10 @@ def advance_shadow_prices(
     """
     Legt die Schattenpreise fest, **bevor** in dieser Periode konsumiert wird.
 
-    - **Leere Timeline** (erster Monat): ``initial_shadow_prices_for_ecu`` (``Σ p·f·VEJ-Ziel =`` wirksames Jahresbudget, ``timeline.ecumenge_ziel_sim_J`` falls gesetzt, sonst ``ecumenge_ziel_J``).
+    - **Leere Timeline** (erster Monat): ``initial_shadow_prices_for_ecu`` —
+      ``p_i = w_i·ecumenge_budget_J/vej_ist_i`` mit Referenz-``vej_ist_i = f_i·vej_ziel_i`` (Jahr);
+      ``ecumenge_budget_J`` aus ``timeline.ecumenge_ziel_sim_J`` falls gesetzt, sonst ``ecumenge_ziel_J``;
+      ``Σ p_i·vej_ist_i = ecumenge_budget_J``.
     - **Sonst**: Rohpreise aus ``_raw_shadow_prices_from_timeline``.
     - **Warmup** (``len(timeline) < price_elasticity_warmup_months`` und ``max_pct > 0``): nur
       ``_clamp_shadow_prices_vs_last_by_utilization_share`` auf den Rohpreisen (keine Normierung auf
@@ -391,13 +363,13 @@ def advance_shadow_prices(
     """
     if len(timeline) == 0:
         timeline.ecumenge_T_override = None
-        budget_J = (
+        ecumenge_budget_J = (
             timeline.ecumenge_ziel_sim_J
             if timeline.ecumenge_ziel_sim_J > 0.0
             else timeline.ecumenge_ziel_J
         )
         timeline.prices_for_next_consumption = initial_shadow_prices_for_ecu(
-            vej_ziel, budget_J, fraction_of_vej_ziel
+            vej_ziel, fraction_of_vej_ziel, ecumenge_budget_J
         )
         return timeline
 

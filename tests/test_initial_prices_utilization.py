@@ -1,21 +1,22 @@
-"""Start-Rohpreise aus Auslastungs-Proxy (gleiche Gewichte)."""
+"""Startpreise ``p = w·ecumenge/vej_ist`` (Jahres-Referenz-vej_ist = f·vej_ziel); bei f=1 wie ``prices_from_weights``."""
 
 from __future__ import annotations
 
-from ecu.logic.initial_prices import initial_weights_uniform, prices_from_weights, raw_initial_shadow_prices_from_utilization
+from ecu.logic.initial_prices import initial_weights_uniform, prices_from_weights
 from ecu.logic.observations import BOUNDARY_KEYS
+from ecu.logic.prices import initial_shadow_prices_for_ecu
 from ecu.simulation.simulation import build_vej_ziel_bundle
 
 
-def test_raw_initial_matches_weights_when_uniform_utilization() -> None:
+def test_initial_shadow_matches_prices_from_weights_when_ref_vej_ist_equals_vej_ziel() -> None:
     vej_ziel = build_vej_ziel_bundle()
     e_soll = 1200.0
-    u = {k: 0.5 for k in BOUNDARY_KEYS}
+    f_one = {k: 1.0 for k in BOUNDARY_KEYS}
     w = initial_weights_uniform(len(BOUNDARY_KEYS))
-    raw_u = raw_initial_shadow_prices_from_utilization(vej_ziel, e_soll, u, w)
-    raw_w = prices_from_weights(vej_ziel, e_soll, w)
+    p_init = initial_shadow_prices_for_ecu(vej_ziel, f_one, e_soll)
+    p_w = prices_from_weights(vej_ziel, e_soll, w)
     for k in BOUNDARY_KEYS:
-        assert abs(raw_u[k] - raw_w[k]) < 1e-9, (k, raw_u[k], raw_w[k])
+        assert abs(p_init[k] - p_w[k]) < 1e-9, (k, p_init[k], p_w[k])
 
 
 def test_ecumenge_J_not_below_ecumenge_ziel_when_overloaded_start() -> None:
