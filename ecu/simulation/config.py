@@ -27,7 +27,8 @@ class SimulationConfig:
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
     # Anteil f_i am VEJ-Ziel: D_i(p_ref) = f_i·vet_ziel_i (Referenznachfrage; Startanker der Kurve).
-    # Start-Schattenpreise werden so normiert, dass Σ p·(f·vej_ziel) = ecumenge_ziel_J (Referenzkonsum am Jahresbudget; monatlich f_i·vet_ziel_i).
+    # Start-Schattenpreise (Bootstrap): ``p_i = w_i·ecumenge_budget_J/vej_ist_i`` mit jährlichem Referenz-``vej_ist_i`` =
+    # ``f_i·vej_ziel_i``; ``Σ p_i·vej_ist_i = ecumenge_budget_J`` (keine Nachskalierung).
     # Fehlende Schlüssel: ``BoundaryConstants.start_demand_percent`` / 100 je Grenze in ``ALL_BOUNDARIES``.
     start_demand_of_vej: Mapping[str, float] = field(default_factory=dict)
     # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(Z), Z ~ N(0, σ); σ wie Modulkonstante.
