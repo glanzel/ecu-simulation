@@ -393,6 +393,7 @@ def report_page(
     seed: int | None,
     chart_data_json: str,
     warmup_diag_rows: list[list[str]] | None = None,
+    nav_links: list[tuple[str, str]] | None = None,
     children: list | None = None,
 ) -> JSX:
     _ = children
@@ -400,7 +401,7 @@ def report_page(
         <html lang="de">
             {site_head("ECU — Auswertung")}
             <body class="min-h-screen bg-white text-slate-900 antialiased">
-                {site_header_bar()}
+                {site_header_bar(nav_links)}
                 <main class="max-w-5xl mx-auto px-4 py-5">
                     <RunParamsBlock
                         ecumenge_ziel_J={ecumenge_ziel_J}

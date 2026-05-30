@@ -3,12 +3,17 @@ from pyjsx import JSX, jsx
 from ecu.ui.web.layout import site_head, site_header_bar
 
 
-def home_page(title: str, intro: str, example_links: list[tuple[str, str]]) -> JSX:
+def home_page(
+    title: str,
+    intro: str,
+    example_links: list[tuple[str, str]],
+    nav_links: list[tuple[str, str]] | None = None,
+) -> JSX:
     return (
         <html lang="de">
             {site_head(title)}
             <body class="min-h-screen bg-white text-slate-900 antialiased">
-                {site_header_bar()}
+                {site_header_bar(nav_links)}
                 <main class="prose prose-slate prose-lg max-w-5xl mx-auto px-4 py-10">
                     <h1 class="not-prose text-2xl font-semibold tracking-tight text-slate-900 mt-0">{title}</h1>
                     <p class="text-slate-600 text-base not-prose -mt-2 mb-6">
