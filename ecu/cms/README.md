@@ -29,6 +29,8 @@ mkdir -p ecu/cms/data
 cd ecu/cms && uv run oxyde migrate
 ```
 
+Im **Docker-/Coolify-Image** führt `scripts/docker-entrypoint.sh` vor dem Start von Uvicorn automatisch `oxyde migrate` aus (Arbeitsverzeichnis: installiertes Paket `ecu/cms`).
+
 ## Header-Bild
 
 ```bash

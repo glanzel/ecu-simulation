@@ -11,5 +11,8 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH" \
     VIRTUAL_ENV="/app/.venv"
 COPY --from=builder /app/.venv /app/.venv
+COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+ENV PORT=8000
 EXPOSE 8000
-CMD ["uvicorn", "ecu.ui.web.app:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
