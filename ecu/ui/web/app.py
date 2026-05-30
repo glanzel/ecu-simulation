@@ -12,7 +12,11 @@ import pyjsx.auto_setup  # noqa: E402, F401 — registriert Import-Hook für ``.
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from oxyde import db
 
+from ecu.cms.menu import menu_links
+from ecu.cms.models import DB_URL
+from ecu.cms.setup import ensure_cms_dirs, setup_cms
 from ecu.logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR
 from ecu.logic.planetary_constants import default_start_demand_by_key
 from ecu.simulation.config import default_config
@@ -24,10 +28,12 @@ from ecu.ui.web.home import home_page
 from ecu.ui.web.report import report_page
 from ecu.ui.web.view_model import build_boundary_sections
 
-app = FastAPI(title="ECU Simulation", docs_url=None, redoc_url=None)
+ensure_cms_dirs()
+app = FastAPI(title="ECU Simulation", docs_url=None, redoc_url=None, lifespan=db.lifespan(default=DB_URL))
 
 _static_dir = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+setup_cms(app)
 
 # Beispiel-Listen (Reihenfolge = ``BOUNDARY_KEYS``): ein Eintrag pro planetarer Grenze.
 _EX_G_CO2_102 = "102|" + "|".join(["100"] * 8)
@@ -66,7 +72,7 @@ def _example_links() -> list[tuple[str, str]]:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index() -> HTMLResponse:
+async def index() -> HTMLResponse:
     intro = (
         "Simulation mit denselben Parametern wie die CLI. "
         "Parameter werden als GET-Query übergeben (siehe `/report`)."
@@ -75,12 +81,13 @@ def index() -> HTMLResponse:
         "ECU-Simulation",
         intro,
         _example_links(),
+        await menu_links(),
     )
     return HTMLResponse(str(page))
 
 
 @app.get("/report", response_class=HTMLResponse)
-def report(  # HTML: ``ecu.ui.web.report.report_page``
+async def report(  # HTML: ``ecu.ui.web.report.report_page``
     ecumenge_ziel_J: float | None = Query(None),
     periods: int = Query(5, ge=1, le=500),
     growth: str | None = Query(None),
@@ -137,6 +144,7 @@ def report(  # HTML: ``ecu.ui.web.report.report_page``
         seed=cfg.random_seed,
         chart_data_json=chart_data_json_for_report(results),
         warmup_diag_rows=warmup_diagnostic_table_rows(results),
+        nav_links=await menu_links(),
     )
     return HTMLResponse(
         str(page),
