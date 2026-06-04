@@ -1,26 +1,27 @@
 """
-Stabile Import-Adresse ``ecu.ui.web.report``; JSX-View in ``report_view``.
+Stabile Import-Adresse ``ecu.ui.web.simulation_page``; JSX-View in ``simulation_view``.
 
 ``import pyjsx.auto_setup`` vor dem ersten Import dieses Moduls (z. B. in ``app.py``).
 
-Die Report-Route in FastAPI: ``ecu.ui.web.app:report`` — ``@app.get("/report", ...)``.
+Die Simulation-Route in FastAPI: ``ecu.ui.web.app:simulation`` — ``@app.get("/simulation", ...)``.
 """
 
 from __future__ import annotations
 
 import pyjsx.auto_setup  # noqa: F401 — .px-Imports + Codec
 
-from ecu.ui.web.report_view import (
+from ecu.ui.web.simulation_view import (
     BoundaryBlock,
     ChartsSection,
     DataGrid,
     GlobalYearlyEcuBlock,
     MonthGrid,
     RunParamsBlock,
+    SimulationSetupPanel,
     WarmupDiagBlock,
     YearBlock,
     YearHeaderRow,
-    report_page,
+    simulation_page,
 )
 
 __all__ = [
@@ -30,8 +31,9 @@ __all__ = [
     "GlobalYearlyEcuBlock",
     "MonthGrid",
     "RunParamsBlock",
+    "SimulationSetupPanel",
     "WarmupDiagBlock",
     "YearBlock",
     "YearHeaderRow",
-    "report_page",
+    "simulation_page",
 ]

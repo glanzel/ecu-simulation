@@ -2,6 +2,7 @@ from pyjsx import JSX, jsx
 from pyjsx.jsx import HTMLDontEscape
 
 import ecu.ui.web.report_logic as RL
+from ecu.simulation.run_params import WebRunFormFields
 from ecu.simulation.report_aggregates import (
     BoundaryYearSummary,
     YearlyEcuSummary,
@@ -102,6 +103,161 @@ def DataGrid(
         <div class={grid_classes} role="grid" style={eff_style}>
             {cells}
         </div>
+    )
+
+
+def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -> JSX:
+    """Aufklappbares GET-Formular für einen neuen Simulationslauf (standardmäßig zugeklappt)."""
+    _ = children
+    seed_field = (
+        <input name="seed" type="number" step="1" value={form.seed} class={RL.FORM_INPUT} />
+        if form.seed
+        else <input type="number" step="1" placeholder="optional" class={RL.FORM_INPUT} />
+    )
+    return (
+        <details class="not-prose mb-6 border border-slate-200/80 bg-white shadow-sm group">
+            <summary
+                class={
+                    "cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-slate-800 "
+                    "hover:bg-report-zebra flex items-center justify-between gap-2 "
+                    "[&::-webkit-details-marker]:hidden"
+                }
+            >
+                <span>Lauf konfigurieren</span>
+                <span class="text-[10px] font-normal uppercase tracking-wide text-slate-400 group-open:hidden">
+                    aufklappen
+                </span>
+                <span class="text-[10px] font-normal uppercase tracking-wide text-slate-400 hidden group-open:inline">
+                    zuklappen
+                </span>
+            </summary>
+            <div class="border-t border-slate-100 px-3 py-3">
+                <form method="get" action="/simulation" class="flex flex-col gap-3 text-sm">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="flex flex-col gap-0.5">
+                            <span class="text-[11px] font-medium text-slate-600">ecumenge_ziel_J</span>
+                            <input
+                                name="ecumenge_ziel_J"
+                                type="number"
+                                step="any"
+                                required={True}
+                                value={form.ecumenge_ziel_J}
+                                class={RL.FORM_INPUT}
+                            />
+                        </label>
+                        <label class="flex flex-col gap-0.5">
+                            <span class="text-[11px] font-medium text-slate-600">Jahre (periods)</span>
+                            <input
+                                name="periods"
+                                type="number"
+                                min="1"
+                                max="500"
+                                required={True}
+                                value={form.periods}
+                                class={RL.FORM_INPUT}
+                            />
+                        </label>
+                        <label class="flex flex-col gap-0.5">
+                            <span class="text-[11px] font-medium text-slate-600">Budget (consumption_budget)</span>
+                            <select name="consumption_budget" class={RL.FORM_INPUT}>
+                                <option value="scale" selected={form.consumption_budget == "scale"}>
+                                    scale
+                                </option>
+                                <option value="lagrange" selected={form.consumption_budget == "lagrange"}>
+                                    lagrange
+                                </option>
+                            </select>
+                        </label>
+                        <label class="flex flex-col gap-0.5">
+                            <span class="text-[11px] font-medium text-slate-600">Seed</span>
+                            {seed_field}
+                        </label>
+                        <label class="flex flex-col gap-0.5">
+                            <span class="text-[11px] font-medium text-slate-600">σ Nachfrage (demand_noise_std)</span>
+                            <input
+                                name="demand_noise_std"
+                                type="number"
+                                step="any"
+                                value={form.demand_noise_std}
+                                class={RL.FORM_INPUT}
+                            />
+                        </label>
+                        <label class="flex flex-col gap-0.5">
+                            <span class="text-[11px] font-medium text-slate-600">σ Elastizität (epsilon_noise_std)</span>
+                            <input
+                                name="epsilon_noise_std"
+                                type="number"
+                                step="any"
+                                value={form.epsilon_noise_std}
+                                class={RL.FORM_INPUT}
+                            />
+                        </label>
+                        <label class="flex flex-col gap-0.5">
+                            <span class="text-[11px] font-medium text-slate-600">
+                                Preis-Kappe % (price_max_bundle_scale_pct)
+                            </span>
+                            <input
+                                name="price_max_bundle_scale_pct"
+                                type="number"
+                                step="any"
+                                value={form.price_max_bundle_scale_pct}
+                                class={RL.FORM_INPUT}
+                            />
+                        </label>
+                        <label class="flex flex-col gap-0.5">
+                            <span class="text-[11px] font-medium text-slate-600">
+                                Warmup Monate (price_elasticity_warmup_months)
+                            </span>
+                            <input
+                                name="price_elasticity_warmup_months"
+                                type="number"
+                                min="0"
+                                max="240"
+                                value={form.price_elasticity_warmup_months}
+                                class={RL.FORM_INPUT}
+                            />
+                        </label>
+                    </div>
+                    <label class="flex flex-col gap-0.5">
+                        <span class="text-[11px] font-medium text-slate-600">
+                            Wachstum — Index/Jahr je Grenze (100 = Basis)
+                        </span>
+                        <input name="growth" type="text" value={form.growth} class={RL.FORM_INPUT + " font-mono text-xs"} />
+                        <span class="text-[10px] text-slate-500 leading-snug">
+                            {"Reihenfolge: "}
+                            {form.boundary_order_hint}
+                            {". Trenner: | oder ; oder Komma."}
+                        </span>
+                    </label>
+                    <label class="flex flex-col gap-0.5">
+                        <span class="text-[11px] font-medium text-slate-600">
+                            Start-Nachfrage — % des VEJ-Ziels je Grenze
+                        </span>
+                        <input
+                            name="start_demand"
+                            type="text"
+                            value={form.start_demand}
+                            class={RL.FORM_INPUT + " font-mono text-xs"}
+                        />
+                        <span class="text-[10px] text-slate-500 leading-snug">
+                            {"Gleiche Reihenfolge wie Wachstum."}
+                        </span>
+                    </label>
+                    <div class="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                            type="submit"
+                            class={
+                                "px-3 py-1.5 text-sm font-medium text-white bg-report-accent "
+                                "hover:opacity-90 rounded-sm"
+                            }
+                        >
+                            Simulation starten
+                        </button>
+                        <span class="text-[10px] text-slate-500">Parameter werden per GET an /simulation übergeben.</span>
+                    </div>
+                </form>
+            </div>
+        </details>
     )
 
 
@@ -315,7 +471,7 @@ def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
             <div class="flex flex-col gap-8 border border-slate-200/80 bg-white shadow-sm p-4">
                 <div>
                     <p class="text-xs font-medium text-slate-700 mb-2">Gesamtauslastung (Mittel VEJ-Ist / VET-Ziel)</p>
-                    <div class="relative h-64 w-full min-h-[200px]">
+                    <div class="relative w-full">
                         <canvas id="chart-mean-utilization"></canvas>
                     </div>
                 </div>
@@ -324,19 +480,19 @@ def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
                         ECU-Konten (alles pro Monat): Kontenrahmen, verbucht, konfiguriertes Soll, wirksames Jahresbudget (Ratchet),
                         Budget-Decke
                     </p>
-                    <div class="relative h-64 w-full min-h-[200px]">
+                    <div class="relative w-full">
                         <canvas id="chart-ecu-totals"></canvas>
                     </div>
                 </div>
                 <div>
                     <p class="text-xs font-medium text-slate-700 mb-2">Auslastung pro Grenze (VEJ-Ist / VET-Ziel, %)</p>
-                    <div class="relative h-72 w-full min-h-[220px]">
+                    <div class="relative w-full">
                         <canvas id="chart-pct-vet-ziel"></canvas>
                     </div>
                 </div>
                 <div>
                     <p class="text-xs font-medium text-slate-700 mb-2">Schattenpreis pro Grenze (ECU / Einheit)</p>
-                    <div class="relative h-72 w-full min-h-[220px]">
+                    <div class="relative w-full">
                         <canvas id="chart-price-by-boundary"></canvas>
                     </div>
                 </div>
@@ -349,7 +505,7 @@ def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
                 src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"
                 crossorigin="anonymous"
             ></script>
-            <script defer={True} src="/static/report-charts.js"></script>
+            <script defer={True} src="/static/simulation-charts.js"></script>
         </section>
     )
 
@@ -378,7 +534,7 @@ def BoundaryBlock(section: BoundarySection, children: list | None = None) -> JSX
     )
 
 
-def report_page(
+def simulation_page(
     sections: list[BoundarySection],
     yearly_ecu: list[YearlyEcuSummary],
     ecumenge_ziel_J: float,
@@ -392,17 +548,20 @@ def report_page(
     epsilon_noise_std: float,
     seed: int | None,
     chart_data_json: str,
+    setup_form: WebRunFormFields | None = None,
     warmup_diag_rows: list[list[str]] | None = None,
     nav_links: list[tuple[str, str]] | None = None,
     children: list | None = None,
 ) -> JSX:
     _ = children
+    setup_panel = <SimulationSetupPanel form={setup_form} /> if setup_form is not None else <span />
     return (
         <html lang="de">
-            {site_head("ECU — Auswertung")}
+            {site_head("ECU — Simulation")}
             <body class="min-h-screen bg-white text-slate-900 antialiased">
                 {site_header_bar(nav_links)}
                 <main class="max-w-5xl mx-auto px-4 py-5">
+                    {setup_panel}
                     <RunParamsBlock
                         ecumenge_ziel_J={ecumenge_ziel_J}
                         ecumenge_J={ecumenge_J}
@@ -441,8 +600,9 @@ __all__ = [
     "GlobalYearlyEcuBlock",
     "MonthGrid",
     "RunParamsBlock",
+    "SimulationSetupPanel",
     "WarmupDiagBlock",
     "YearBlock",
     "YearHeaderRow",
-    "report_page",
+    "simulation_page",
 ]

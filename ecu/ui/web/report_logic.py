@@ -28,6 +28,10 @@ STYLE_COLS_6_EQ: str = "grid-template-columns: repeat(6, minmax(0, 1fr))"
 STYLE_COLS_7_EQ: str = "grid-template-columns: repeat(7, minmax(0, 1fr))"
 
 REPORT_GAP: str = "gap-1"
+FORM_INPUT: str = (
+    "w-full border border-slate-200 rounded-sm px-2 py-1.5 text-sm text-slate-800 "
+    "bg-white focus:outline-none focus:ring-1 focus:ring-report-accent/40"
+)
 
 RUN_PARAMS_HDR: list[str] = ["ecumenge_ziel_J", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
 YEARLY_ECU_HDR: list[str] = ["Jahr", "Ecu VEJ-Ziel ges. (Jahr)", "Slack", "Ø Auslast."]

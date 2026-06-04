@@ -2,7 +2,7 @@
 
 ## Styling: Tailwind CSS + Typography
 
-Die Seite [`home.px`](home.px) und die Report-Ansicht in [`report.py`](report.py) (PyJSX mit `# coding: jsx`) laden **`/static/app.css`** (gebaut mit [Tailwind](https://tailwindcss.com/) und dem Plugin [`@tailwindcss/typography`](https://github.com/tailwindlabs/tailwindcss-typography)). [`app.py`](app.py) mountet `static/` unter `/static`.
+Die Simulation unter [`/simulation`](app.py) wird in [`simulation_view.px`](simulation_view.px) gerendert (Import über [`simulation_page.py`](simulation_page.py), PyJSX mit `# coding: jsx`). Alle Seiten laden **`/static/app.css`** (gebaut mit [Tailwind](https://tailwindcss.com/) und dem Plugin [`@tailwindcss/typography`](https://github.com/tailwindlabs/tailwindcss-typography)). [`app.py`](app.py) mountet `static/` unter `/static`; `/` leitet auf `/simulation` um.
 
 Fließtext und Überschriften liegen in einem Container mit `prose prose-slate`; Raster und `<details>` stehen in `not-prose`, damit die Typography-Defaults die Tabellen nicht verzerren.
 
