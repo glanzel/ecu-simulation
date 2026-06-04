@@ -14,6 +14,64 @@ from ecu.simulation.config import SimulationConfig
 from ecu.simulation.consumption_budget import ConsumptionBudgetMethod
 
 
+def _growth_index_csv(growth_factors: dict[str, float]) -> str:
+    parts: list[str] = []
+    for k in BOUNDARY_KEYS:
+        idx = growth_factors[k] * 100.0
+        if abs(idx - round(idx)) < 1e-9:
+            parts.append(str(int(round(idx))))
+        else:
+            parts.append(f"{idx:.4g}")
+    return "|".join(parts)
+
+
+def _start_demand_percent_csv(start_demand: dict[str, float]) -> str:
+    return "|".join(f"{start_demand[k] * 100.0:.2f}" for k in BOUNDARY_KEYS)
+
+
+@dataclass(frozen=True)
+class WebRunFormFields:
+    """Vorbelegung des Simulation-GET-Formulars (wirksame Werte nach ``apply_to_config``)."""
+
+    ecumenge_ziel_J: str
+    periods: str
+    growth: str
+    start_demand: str
+    demand_noise_std: str
+    epsilon_noise_std: str
+    seed: str
+    consumption_budget: str
+    price_max_bundle_scale_pct: str
+    price_elasticity_warmup_months: str
+    boundary_order_hint: str
+
+    @classmethod
+    def from_run(
+        cls, params: RunParams, cfg: SimulationConfig, growth_factors: dict[str, float]
+    ) -> WebRunFormFields:
+        growth_s = params.growth_csv if params.growth_csv is not None else _growth_index_csv(growth_factors)
+        sd = cfg.resolved_start_demand()
+        start_s = (
+            params.start_demand_csv
+            if params.start_demand_csv is not None
+            else _start_demand_percent_csv(sd)
+        )
+        seed_s = "" if cfg.random_seed is None else str(cfg.random_seed)
+        return cls(
+            ecumenge_ziel_J=str(cfg.ecumenge_ziel_J),
+            periods=str(params.periods_years),
+            growth=growth_s,
+            start_demand=start_s,
+            demand_noise_std=str(cfg.demand_at_reference_price_log_noise_std),
+            epsilon_noise_std=str(cfg.epsilon_log_noise_std),
+            seed=seed_s,
+            consumption_budget=cfg.consumption_budget_method.value,
+            price_max_bundle_scale_pct=str(cfg.price.max_shadow_bundle_scale_pct_per_period),
+            price_elasticity_warmup_months=str(cfg.price.price_elasticity_warmup_months),
+            boundary_order_hint=", ".join(BOUNDARY_KEYS),
+        )
+
+
 def _parse_one_float_token(raw: str) -> float:
     t = raw.strip()
     if t.endswith("%"):
@@ -48,6 +106,18 @@ def parse_float_list(s: str, n: int, label: str) -> list[float]:
 def parse_comma_floats(s: str, n: int, label: str) -> list[float]:
     """Abwärtskompatibel: gleich wie :func:`parse_float_list`."""
     return parse_float_list(s, n, label)
+
+
+def optional_query_int(raw: str | int | None) -> int | None:
+    """GET-Formular: leerer Query-Wert ``seed=`` → ``None`` (kein Seed)."""
+    if raw is None:
+        return None
+    if isinstance(raw, int):
+        return raw
+    s = str(raw).strip()
+    if not s:
+        return None
+    return int(s)
 
 
 @dataclass
