@@ -11,9 +11,14 @@ RUN uv sync --frozen --group web --no-editable
 FROM python:3.12-slim-bookworm
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
-    PATH="/app/.venv/bin:$PATH" \
-    VIRTUAL_ENV="/app/.venv"
+    PATH="/app/.venv/bin:/usr/local/bin:$PATH" \
+    VIRTUAL_ENV="/app/.venv" \
+    UV_PROJECT_ENVIRONMENT="/app/.venv" \
+    UV_NO_SYNC=1
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/pyproject.toml /app/uv.lock /app/README.md ./
+COPY --from=builder /app/ecu ./ecu
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 ENV PORT=8000

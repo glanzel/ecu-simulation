@@ -37,7 +37,25 @@ Oder vom Repo-Root: `make ragtail-seed` und `make ragtail-admin USERNAME=… EMA
 
 Migrationen laufen beim App-Start über `cms.lifespan` automatisch.
 
-Im **Docker-/Coolify-Image** legt `scripts/docker-entrypoint.sh` nur das Datenverzeichnis an; Schema-Migration erfolgt beim ersten Request über den Lifespan.
+Im **Docker-/Coolify-Image** legt `scripts/docker-entrypoint.sh` nur das Datenverzeichnis an; Schema-Migration erfolgt beim ersten Request über den Lifespan. **`uv`** ist im Image unter `/usr/local/bin/uv` verfügbar (Projekt unter `/app`, venv unter `/app/.venv`).
+
+Ragtail-CLI **im laufenden Container** (Working Directory wie lokal: `ecu/ragtail/`):
+
+```bash
+docker exec -it <container> sh
+cd ecu/ragtail
+uv run ragtail-seeddb --language-code de --display-name Deutsch --noinput
+uv run ragtail-createsuperuser --username admin --email admin@example.com --password secret --noinput
+```
+
+Einmalig in einem frischen Container ohne laufenden Server:
+
+```bash
+docker run --rm -it ecu-simulation:latest sh -c \
+  'cd ecu/ragtail && uv run ragtail-seeddb --language-code de --display-name Deutsch --noinput'
+```
+
+Weitere Locales (z. B. Englisch) danach im Admin unter **Locales** anlegen oder erneut `ragtail-seeddb`/`ragtail-initdb` gemäß Ragtail-Doku — die Simulations-UI (`/en/simulation`) nutzt unabhängig davon `ecu/ui/web/locales/en.json`.
 
 ## Umgebungsvariablen
 
