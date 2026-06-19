@@ -10,6 +10,7 @@ from typing import Any
 from ecu.logic.planetary_constants import ALL_BOUNDARIES
 from ecu.logic.observations import MONTHS_PER_YEAR
 from ecu.simulation.simulation import PeriodResult
+from ecu.ui.web.i18n import SimulationI18n
 
 
 def _num_json(x: float) -> float | None:
@@ -18,7 +19,7 @@ def _num_json(x: float) -> float | None:
     return float(x)
 
 
-def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
+def chart_payload_dict(results: list[PeriodResult], *, i18n: SimulationI18n) -> dict[str, Any]:
     if not results:
         return {
             "labels": [],
@@ -31,10 +32,14 @@ def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
             "ecumenge_T": [],
             "pctVetZielSeries": [],
             "priceSeries": [],
+            "chartLabels": i18n.chart_labels(),
         }
     inv_y = 1.0 / float(MONTHS_PER_YEAR)
     labels = [str(r.period) for r in results]
-    boundaries = [{"key": b.key, "label": b.label_de} for b in ALL_BOUNDARIES]
+    boundaries = [
+        {"key": b.key, "label": i18n.boundary_label(b.key, fallback=b.label_de)}
+        for b in ALL_BOUNDARIES
+    ]
     mean_u = [_num_json(r.mean_utilization) for r in results]
     bundle_m = [_num_json(r.bundle_ecu * inv_y) for r in results]
     exp = [_num_json(r.ecu_ist_T) for r in results]
@@ -66,9 +71,10 @@ def chart_payload_dict(results: list[PeriodResult]) -> dict[str, Any]:
         "ecumenge_T": cap_m,
         "pctVetZielSeries": pct_vet_ziel_series,
         "priceSeries": price_series,
+        "chartLabels": i18n.chart_labels(),
     }
 
 
-def chart_data_json_for_report(results: list[PeriodResult]) -> str:
-    raw = json.dumps(chart_payload_dict(results), ensure_ascii=False, separators=(",", ":"))
+def chart_data_json_for_report(results: list[PeriodResult], *, i18n: SimulationI18n) -> str:
+    raw = json.dumps(chart_payload_dict(results, i18n=i18n), ensure_ascii=False, separators=(",", ":"))
     return raw.replace("</script>", "<\\/script>")

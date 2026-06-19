@@ -12,27 +12,77 @@ def site_head(title: str) -> JSX:
     )
 
 
-def site_header_bar(nav_links: list[tuple[str, str]] | None = None) -> JSX:
+def language_switcher(locale_links) -> JSX:
+    if not locale_links or len(locale_links) < 2:
+        return <span />
+    active_class = "text-white font-semibold cursor-default"
+    inactive_class = "text-white/70 hover:text-white no-underline"
+    parts: list = []
+    for index, option in enumerate(locale_links):
+        if index > 0:
+            parts.append(<span class="text-white/40 select-none" aria-hidden="true">|</span>)
+        if option.is_current:
+            parts.append(
+                <span class={active_class} aria-label={option.label} aria-current="true">
+                    {option.label}
+                </span>
+            )
+        else:
+            parts.append(
+                <a href={option.href} class={inactive_class} hreflang={option.language_code}>
+                    {option.label}
+                </a>
+            )
+    return (
+        <div class="flex items-center gap-1.5 text-xs font-medium tracking-wide shrink-0" role="navigation" aria-label="Language">
+            {parts}
+        </div>
+    )
+
+
+def site_header_bar(nav_links: list[tuple[str, str]] | None = None, locale_links=None) -> JSX:
     cms_links = nav_links or []
     nav_link_class = "text-white/90 hover:text-white no-underline whitespace-nowrap"
     return (
         <header class="ecu-header-decor bg-brand-header text-white shadow-sm">
             <div class="relative z-10 max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-6">
-                <a href="/simulation" class="flex items-center gap-3 min-w-0 no-underline hover:opacity-95 shrink-0">
+                <a href="/" class="flex items-center gap-3 min-w-0 no-underline hover:opacity-95 shrink-0">
                     <img src="/static/logo3.svg" alt="" class="h-9 w-auto shrink-0 logo-header-white" width="40" height="55" />
                     <span class="text-lg font-semibold tracking-tight text-white font-sans truncate">Ecological Unit</span>
                 </a>
-                <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm shrink-0">
-                    {
-                        [
-                            <a href={href} class={nav_link_class}>
-                                {label}
-                            </a>
-                            for (label, href) in cms_links
-                        ]
-                    }
-                    <a href="/simulation" class={nav_link_class}>Simulation</a>
-                </nav>
+                <div class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm shrink-0">
+                    <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1">
+                        {
+                            [
+                                <a href={href} class={nav_link_class}>
+                                    {label}
+                                </a>
+                                for (label, href) in cms_links
+                            ]
+                        }
+                    </nav>
+                    {language_switcher(locale_links)}
+                </div>
             </div>
         </header>
+    )
+
+
+def site_layout(
+    title: str,
+    content: JSX | list,
+    nav_links: list[tuple[str, str]] | None = None,
+    locale_links=None,
+    language_code: str = "de",
+    main_class: str = "max-w-5xl mx-auto px-4 py-5",
+) -> JSX:
+    """Gemeinsamer Seitenrahmen für Simulation und CMS-Seiten."""
+    return (
+        <html lang={language_code}>
+            {site_head(title)}
+            <body class="min-h-screen bg-white text-slate-900 antialiased">
+                {site_header_bar(nav_links, locale_links=locale_links)}
+                <main class={main_class}>{content}</main>
+            </body>
+        </html>
     )

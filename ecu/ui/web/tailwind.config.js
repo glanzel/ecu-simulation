@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./**/*.px", "./app.py", "../../cms/**/*.px"],
+  content: ["./**/*.px", "./app.py", "../../ragtail/**/*.px"],
   theme: {
     extend: {
       colors: {

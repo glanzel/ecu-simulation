@@ -1,10 +1,10 @@
 # Optional npm (Tailwind-Build in ui/web)
 ui/web/node_modules/
 
-# CMS (SQLite + Uploads)
-ecu/cms/data/
-ecu/cms/media/*
-!ecu/cms/media/.gitkeep
+# Ragtail-CMS (SQLite)
+ecu/ragtail/data/
+/ragtail.db
+/ragtail.db-*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

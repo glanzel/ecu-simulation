@@ -21,7 +21,7 @@ web = [
     "uvicorn[standard]>=0.24",
     "python-jsx",
     "oxyde>=0.5",
-    "oxyde-admin>=0.1",
+    "ragtail @ git+https://github.com/glanzel/ragtail.git",
     "python-multipart>=0.0.9",
     "markdown>=3.7",
 ]

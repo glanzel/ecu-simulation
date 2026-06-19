@@ -3,12 +3,8 @@ from pyjsx.jsx import HTMLDontEscape
 
 import ecu.ui.web.report_logic as RL
 from ecu.simulation.run_params import WebRunFormFields
-from ecu.simulation.report_aggregates import (
-    BoundaryYearSummary,
-    YearlyEcuSummary,
-    WARMUP_DIAG_TABLE_HEADER,
-)
-from ecu.ui.web.layout import site_head, site_header_bar
+from ecu.simulation.report_aggregates import BoundaryYearSummary, YearlyEcuSummary
+from ecu.ui.web.layout import site_layout
 from ecu.ui.web.view_model import BoundarySection, MonthRow, YearDetail
 
 
@@ -106,14 +102,15 @@ def DataGrid(
     )
 
 
-def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -> JSX:
+def SimulationSetupPanel(form: WebRunFormFields, i18n, simulation_path: str, children: list | None = None) -> JSX:
     """Aufklappbares GET-Formular für einen neuen Simulationslauf (standardmäßig zugeklappt)."""
     _ = children
     seed_field = (
         <input name="seed" type="number" step="1" value={form.seed} class={RL.FORM_INPUT} />
         if form.seed
-        else <input type="number" step="1" placeholder="optional" class={RL.FORM_INPUT} />
+        else <input type="number" step="1" placeholder={i18n.text("setup.seed_optional")} class={RL.FORM_INPUT} />
     )
+    get_hint = i18n.text("setup.get_hint").replace("{path}", simulation_path)
     return (
         <details class="not-prose mb-6 border border-slate-200/80 bg-white shadow-sm group">
             <summary
@@ -123,19 +120,19 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                     "[&::-webkit-details-marker]:hidden"
                 }
             >
-                <span>Lauf konfigurieren</span>
+                <span>{i18n.text("setup.title")}</span>
                 <span class="text-[10px] font-normal uppercase tracking-wide text-slate-400 group-open:hidden">
-                    aufklappen
+                    {i18n.text("setup.expand")}
                 </span>
                 <span class="text-[10px] font-normal uppercase tracking-wide text-slate-400 hidden group-open:inline">
-                    zuklappen
+                    {i18n.text("setup.collapse")}
                 </span>
             </summary>
             <div class="border-t border-slate-100 px-3 py-3">
-                <form method="get" action="/simulation" class="flex flex-col gap-3 text-sm">
+                <form method="get" action={simulation_path} class="flex flex-col gap-3 text-sm">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">ecumenge_ziel_J</span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_ecumenge_ziel_J")}</span>
                             <input
                                 name="ecumenge_ziel_J"
                                 type="number"
@@ -146,7 +143,7 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                             />
                         </label>
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">Jahre (periods)</span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_periods")}</span>
                             <input
                                 name="periods"
                                 type="number"
@@ -158,7 +155,7 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                             />
                         </label>
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">Budget (consumption_budget)</span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_budget")}</span>
                             <select name="consumption_budget" class={RL.FORM_INPUT}>
                                 <option value="scale" selected={form.consumption_budget == "scale"}>
                                     scale
@@ -169,11 +166,11 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                             </select>
                         </label>
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">Seed</span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_seed")}</span>
                             {seed_field}
                         </label>
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">σ Nachfrage (demand_noise_std)</span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_demand_noise")}</span>
                             <input
                                 name="demand_noise_std"
                                 type="number"
@@ -183,7 +180,7 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                             />
                         </label>
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">σ Elastizität (epsilon_noise_std)</span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_epsilon_noise")}</span>
                             <input
                                 name="epsilon_noise_std"
                                 type="number"
@@ -193,9 +190,7 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                             />
                         </label>
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">
-                                Preis-Kappe % (price_max_bundle_scale_pct)
-                            </span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_price_cap")}</span>
                             <input
                                 name="price_max_bundle_scale_pct"
                                 type="number"
@@ -205,9 +200,7 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                             />
                         </label>
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">
-                                Warmup Monate (price_elasticity_warmup_months)
-                            </span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_warmup_months")}</span>
                             <input
                                 name="price_elasticity_warmup_months"
                                 type="number"
@@ -219,20 +212,16 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                         </label>
                     </div>
                     <label class="flex flex-col gap-0.5">
-                        <span class="text-[11px] font-medium text-slate-600">
-                            Wachstum — Index/Jahr je Grenze (100 = Basis)
-                        </span>
+                        <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_growth")}</span>
                         <input name="growth" type="text" value={form.growth} class={RL.FORM_INPUT + " font-mono text-xs"} />
                         <span class="text-[10px] text-slate-500 leading-snug">
-                            {"Reihenfolge: "}
+                            {i18n.text("setup.growth_order_prefix")}
                             {form.boundary_order_hint}
-                            {". Trenner: | oder ; oder Komma."}
+                            {i18n.text("setup.growth_separators")}
                         </span>
                     </label>
                     <label class="flex flex-col gap-0.5">
-                        <span class="text-[11px] font-medium text-slate-600">
-                            Start-Nachfrage — % des VEJ-Ziels je Grenze
-                        </span>
+                        <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_start_demand")}</span>
                         <input
                             name="start_demand"
                             type="text"
@@ -240,7 +229,7 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                             class={RL.FORM_INPUT + " font-mono text-xs"}
                         />
                         <span class="text-[10px] text-slate-500 leading-snug">
-                            {"Gleiche Reihenfolge wie Wachstum."}
+                            {i18n.text("setup.start_demand_order")}
                         </span>
                     </label>
                     <div class="flex flex-wrap items-center gap-2 pt-1">
@@ -251,9 +240,9 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
                                 "hover:opacity-90 rounded-sm"
                             }
                         >
-                            Simulation starten
+                            {i18n.text("setup.submit")}
                         </button>
-                        <span class="text-[10px] text-slate-500">Parameter werden per GET an /simulation übergeben.</span>
+                        <span class="text-[10px] text-slate-500">{get_hint}</span>
                     </div>
                 </form>
             </div>
@@ -262,6 +251,7 @@ def SimulationSetupPanel(form: WebRunFormFields, children: list | None = None) -
 
 
 def RunParamsBlock(
+    i18n,
     ecumenge_ziel_J: float,
     ecumenge_J: float,
     periods_years: int,
@@ -274,7 +264,7 @@ def RunParamsBlock(
     seed: int | None,
     children: list | None = None,
 ) -> JSX:
-    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und Start-Nachfrage (Anteil VEJ-Ziel). ``n_months`` für API-Kompatibilität."""
+    """Kompakt: eine Zeile Kernparameter, darunter Wachstum und Start-Nachfrage (Anteil VEJ-Ziel)."""
     _ = (children, n_months)
     row1 = RL.run_params_row(
         ecumenge_ziel_J, periods_years, budget_method, demand_noise_std, epsilon_noise_std, seed
@@ -283,21 +273,21 @@ def RunParamsBlock(
     sdline = RL.start_demand_one_line(start_demand_by_boundary)
     ist_note = (
         <div class="border-t border-slate-100 bg-report-zebra px-2 py-1 text-[11px] text-slate-600 leading-snug">
-            <span class="font-medium text-slate-500">ecumenge_ziel_J / ecumenge_J (Start)</span>
+            <span class="font-medium text-slate-500">{i18n.text("run_params.ecumenge_note_label")}</span>
             {": "}
             {RL.fmt_num(ecumenge_ziel_J, prec=6)}
             {" / "}
             {RL.fmt_num(ecumenge_J, prec=6)}
-            {" — ecumenge_J = simulierte wirksame Jahresmenge für die erste ecumenge_T (÷12)."}
+            {i18n.text("run_params.ecumenge_note_suffix")}
         </div>
     )
     return (
         <section class="not-prose mb-6">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Laufparameter</p>
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">{i18n.text("sections.run_params")}</p>
             <div class="border border-slate-200/80 bg-white shadow-sm">
                 <DataGrid
                     n_cols={6}
-                    headers={RL.RUN_PARAMS_HDR}
+                    headers={RL.table_headers(i18n, "run_params_hdr")}
                     rows={[row1]}
                     flush={False}
                     report_style={True}
@@ -305,12 +295,12 @@ def RunParamsBlock(
                 />
                 {ist_note}
                 <div class="border-t border-slate-100 bg-white px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
-                    <span class="font-medium text-slate-500">Wachstum (Index/Jahr, 100 = Basis)</span>
+                    <span class="font-medium text-slate-500">{i18n.text("run_params.growth_label")}</span>
                     {": "}
                     {gline}
                 </div>
                 <div class="border-t border-slate-100 bg-white px-2 py-1.5 text-[11px] text-slate-600 leading-snug">
-                    <span class="font-medium text-slate-500">Start-Nachfrage (% VEJ-Ziel)</span>
+                    <span class="font-medium text-slate-500">{i18n.text("run_params.start_demand_label")}</span>
                     {": "}
                     {sdline}
                 </div>
@@ -319,20 +309,19 @@ def RunParamsBlock(
     )
 
 
-def WarmupDiagBlock(rows: list[list[str]] | None, children: list | None = None) -> JSX:
-    """Warmup-Monate: ``Σ p·vet_ziel`` vs. ecumenge_ziel_sim_J/12 ohne Preis-Normierung auf Jahresbudget."""
+def WarmupDiagBlock(i18n, rows: list[list[str]] | None, children: list | None = None) -> JSX:
     _ = children
     if not rows:
         return <span />
     return (
         <section class="not-prose mb-6">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                Warmup — Schattenpreise (ohne Angleich Ecu VEJ-Ziel ges. (Jahr) an ecumenge_ziel_J)
+                {i18n.text("sections.warmup")}
             </p>
             <div class="border border-slate-200/80 bg-white shadow-sm">
                 <DataGrid
                     n_cols={5}
-                    headers={WARMUP_DIAG_TABLE_HEADER}
+                    headers={RL.table_headers(i18n, "warmup_diag_hdr")}
                     rows={rows}
                     flush={False}
                     report_style={True}
@@ -341,17 +330,13 @@ def WarmupDiagBlock(rows: list[list[str]] | None, children: list | None = None) 
                 />
             </div>
             <p class="text-[10px] text-slate-500 mt-1.5 leading-snug not-prose">
-                Nur in den ersten N Monaten (Konfiguration price_elasticity_warmup_months): pro Grenze
-                die Staffel r_k gegenüber dem Vormonatspreis; kein Angleichen von Ecu VEJ-Ziel ges. (Jahr) an das
-                wirksames simuliertes Jahresziel. Spalten: Monatswert Summe p·VET-Ziel, Referenz ecumenge_ziel_sim_J/12
-                (nach ggf. Ratchet), Abweichung Monat und hochgerechnet Jahr (12·Δ Monat).
+                {i18n.text("warmup.footnote")}
             </p>
         </section>
     )
 
 
-def GlobalYearlyEcuBlock(rows: list[YearlyEcuSummary], children: list | None = None) -> JSX:
-    """Pro Jahr: Preis-/Kontenrahmen (Ecu VEJ-Ziel ges. (Jahr), Slack) und mittlere Auslastung."""
+def GlobalYearlyEcuBlock(i18n, rows: list[YearlyEcuSummary], children: list | None = None) -> JSX:
     _ = children
     rrows = RL.yearly_ecu_table_rows(rows)
     if rrows is None:
@@ -359,38 +344,32 @@ def GlobalYearlyEcuBlock(rows: list[YearlyEcuSummary], children: list | None = N
     return (
         <section class="not-prose mb-6">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                Jahresübersicht — ECU (alle Grenzen)
+                {i18n.text("sections.yearly_ecu")}
             </p>
             <div class="border border-slate-200/80 bg-white shadow-sm">
                 <DataGrid
                     n_cols={4}
-                    headers={RL.YEARLY_ECU_HDR}
+                    headers={RL.table_headers(i18n, "yearly_ecu_hdr")}
                     rows={rrows}
                     flush={False}
                     report_style={True}
                     extra_classes="my-0 border-0 shadow-none"
                 />
                 <div class="border-t border-slate-100 bg-report-zebra px-2 py-1.5 text-[11px] text-slate-500 leading-snug">
-                    <strong>Ecu VEJ-Ziel ges. (Jahr)</strong> = Jahreswert Σ p_i·vej_ziel_i zum Preisvektor am Jahresende (Kontenrahmen).
-                    Im Diagramm „ECU-Konten“ ist dieselbe Größe zusätzlich als <strong>Monatsanteil</strong> (÷12) gegenüber Ist und Referenzlinien.
-                    <strong>Slack</strong> = Jahreswert Σ p·VEJ-Ziel minus konfiguriertes ecumenge_ziel_J — bei exakter Normierung 0;
-                    im weichen Pfad kann er von 0 abweichen (schrittweise Annäherung ans simulierte Jahresbudget ecumenge_ziel_sim_J).{" "}
-                    Diagramm „ECU-Konten“: <strong>ecumenge_ziel_sim_J (Monat)</strong> und <strong>ecumenge_T</strong> sind dort eigene Kurven
-                    (ecumenge_T = simulierte ausgegebene Monatsmenge für Σ p·c; kann vom Ratchet-Monatsanteil abweichen, z. B. im ersten Monat). Ø Auslast. =
-                    Mittel aus VEJ-Ist / VET-Ziel je Grenze (kann {">"} 1).
+                    {i18n.text("yearly_ecu.footnote")}
                 </div>
             </div>
         </section>
     )
 
 
-def MonthGrid(rows: list[MonthRow], children: list | None = None) -> JSX:
+def MonthGrid(i18n, rows: list[MonthRow], children: list | None = None) -> JSX:
     _ = children
     rrows = RL.month_table_rows(rows)
     return (
         <DataGrid
             n_cols={7}
-            headers={RL.MONTH_HDR}
+            headers={RL.table_headers(i18n, "month_hdr")}
             rows={rrows}
             flush={True}
             report_style={True}
@@ -399,10 +378,10 @@ def MonthGrid(rows: list[MonthRow], children: list | None = None) -> JSX:
     )
 
 
-def YearHeaderRow(children: list | None = None) -> JSX:
+def YearHeaderRow(i18n, children: list | None = None) -> JSX:
     _ = children
     cells: list = []
-    for h in RL.YEAR_HDR:
+    for h in RL.table_headers(i18n, "year_hdr"):
         cells.append(
             <div
                 class={
@@ -442,7 +421,7 @@ def YearSummaryCells(summary: BoundaryYearSummary) -> list:
     return out
 
 
-def YearBlock(yd: YearDetail, children: list | None = None) -> JSX:
+def YearBlock(i18n, yd: YearDetail, children: list | None = None) -> JSX:
     _ = children
     return (
         <details class="not-prose border-b border-slate-100 bg-white last:border-b-0">
@@ -457,41 +436,38 @@ def YearBlock(yd: YearDetail, children: list | None = None) -> JSX:
                 {YearSummaryCells(yd.summary)}
             </summary>
             <div class="border-t border-slate-100 bg-white px-0 py-1">
-                <MonthGrid rows={yd.months} />
+                <MonthGrid i18n={i18n} rows={yd.months} />
             </div>
         </details>
     )
 
 
-def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
+def ChartsSection(i18n, chart_data_json: str, children: list | None = None) -> JSX:
     _ = children
     return (
         <section class="not-prose mb-6">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Diagramme</p>
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">{i18n.text("sections.charts")}</p>
             <div class="flex flex-col gap-8 border border-slate-200/80 bg-white shadow-sm p-4">
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">Gesamtauslastung (Mittel VEJ-Ist / VET-Ziel)</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.mean_utilization_caption")}</p>
                     <div class="relative w-full">
                         <canvas id="chart-mean-utilization"></canvas>
                     </div>
                 </div>
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">
-                        ECU-Konten (alles pro Monat): Kontenrahmen, verbucht, konfiguriertes Soll, wirksames Jahresbudget (Ratchet),
-                        Budget-Decke
-                    </p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.ecu_totals_caption")}</p>
                     <div class="relative w-full">
                         <canvas id="chart-ecu-totals"></canvas>
                     </div>
                 </div>
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">Auslastung pro Grenze (VEJ-Ist / VET-Ziel, %)</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.pct_vet_ziel_caption")}</p>
                     <div class="relative w-full">
                         <canvas id="chart-pct-vet-ziel"></canvas>
                     </div>
                 </div>
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">Schattenpreis pro Grenze (ECU / Einheit)</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.price_caption")}</p>
                     <div class="relative w-full">
                         <canvas id="chart-price-by-boundary"></canvas>
                     </div>
@@ -510,7 +486,7 @@ def ChartsSection(chart_data_json: str, children: list | None = None) -> JSX:
     )
 
 
-def BoundaryBlock(section: BoundarySection, children: list | None = None) -> JSX:
+def BoundaryBlock(i18n, section: BoundarySection, children: list | None = None) -> JSX:
     _ = children
     tr = [RL.boundary_summary_row(section)]
     return (
@@ -518,7 +494,7 @@ def BoundaryBlock(section: BoundarySection, children: list | None = None) -> JSX
             <summary class="cursor-pointer list-none block w-full [&::-webkit-details-marker]:hidden">
                 <DataGrid
                     n_cols={6}
-                    headers={RL.BOUNDARY_SUMMARY_HDR}
+                    headers={RL.table_headers(i18n, "boundary_summary_hdr")}
                     rows={tr}
                     flush={True}
                     report_style={True}
@@ -526,8 +502,8 @@ def BoundaryBlock(section: BoundarySection, children: list | None = None) -> JSX
             </summary>
             <div class="border-t border-slate-100 bg-white py-1.5 px-0">
                 <div class="border border-slate-200/60 bg-white w-full rounded-none">
-                    <YearHeaderRow />
-                    {[<YearBlock yd={yd} /> for yd in section.years]}
+                    <YearHeaderRow i18n={i18n} />
+                    {[<YearBlock i18n={i18n} yd={yd} /> for yd in section.years]}
                 </div>
             </div>
         </details>
@@ -548,48 +524,54 @@ def simulation_page(
     epsilon_noise_std: float,
     seed: int | None,
     chart_data_json: str,
+    i18n,
+    simulation_path: str,
     setup_form: WebRunFormFields | None = None,
     warmup_diag_rows: list[list[str]] | None = None,
     nav_links: list[tuple[str, str]] | None = None,
+    locale_links=None,
+    language_code: str = "de",
     children: list | None = None,
 ) -> JSX:
     _ = children
-    setup_panel = <SimulationSetupPanel form={setup_form} /> if setup_form is not None else <span />
-    return (
-        <html lang="de">
-            {site_head("ECU — Simulation")}
-            <body class="min-h-screen bg-white text-slate-900 antialiased">
-                {site_header_bar(nav_links)}
-                <main class="max-w-5xl mx-auto px-4 py-5">
-                    {setup_panel}
-                    <RunParamsBlock
-                        ecumenge_ziel_J={ecumenge_ziel_J}
-                        ecumenge_J={ecumenge_J}
-                        periods_years={periods_years}
-                        n_months={n_months}
-                        budget_method={budget_method}
-                        growth_by_boundary={growth_by_boundary}
-                        start_demand_by_boundary={start_demand_by_boundary}
-                        demand_noise_std={demand_noise_std}
-                        epsilon_noise_std={epsilon_noise_std}
-                        seed={seed}
-                    />
-                    <ChartsSection chart_data_json={chart_data_json} />
-                    <WarmupDiagBlock rows={warmup_diag_rows} />
-                    <GlobalYearlyEcuBlock rows={yearly_ecu} />
-                    <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1 not-prose">
-                        Grenzen
-                    </p>
-                    <p class="text-[10px] text-slate-500 mb-3 not-prose leading-snug">
-                        Spalte Demand = Referenznachfrage (demand_at_reference_price), gleiche Einheit wie
-                        VEJ-Ist / Monat. Spalte Ecu VEJ-Ist = p·VEJ-Ist an dieser Grenze (verbuchte ECU).
-                    </p>
-                    <div class="not-prose flex flex-col gap-3">
-                        {[<BoundaryBlock section={sec} /> for sec in sections]}
-                    </div>
-                </main>
-            </body>
-        </html>
+    setup_panel = (
+        <SimulationSetupPanel form={setup_form} i18n={i18n} simulation_path={simulation_path} />
+        if setup_form is not None
+        else <span />
+    )
+    return site_layout(
+        title=i18n.text("page_title"),
+        nav_links=nav_links,
+        locale_links=locale_links,
+        language_code=language_code,
+        content=[
+            setup_panel,
+            <RunParamsBlock
+                i18n={i18n}
+                ecumenge_ziel_J={ecumenge_ziel_J}
+                ecumenge_J={ecumenge_J}
+                periods_years={periods_years}
+                n_months={n_months}
+                budget_method={budget_method}
+                growth_by_boundary={growth_by_boundary}
+                start_demand_by_boundary={start_demand_by_boundary}
+                demand_noise_std={demand_noise_std}
+                epsilon_noise_std={epsilon_noise_std}
+                seed={seed}
+            />,
+            <ChartsSection i18n={i18n} chart_data_json={chart_data_json} />,
+            <WarmupDiagBlock i18n={i18n} rows={warmup_diag_rows} />,
+            <GlobalYearlyEcuBlock i18n={i18n} rows={yearly_ecu} />,
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1 not-prose">
+                {i18n.text("sections.boundaries")}
+            </p>,
+            <p class="text-[10px] text-slate-500 mb-3 not-prose leading-snug">
+                {i18n.text("boundaries.intro")}
+            </p>,
+            <div class="not-prose flex flex-col gap-3">
+                {[<BoundaryBlock i18n={i18n} section={sec} /> for sec in sections]}
+            </div>,
+        ],
     )
 
 

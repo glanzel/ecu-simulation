@@ -3,8 +3,9 @@ UV ?= uv
 IMAGE ?= ecu-simulation:latest
 PORT ?= 8000
 WEB_DIR := ecu/ui/web
+RAGTAIL_DIR := ecu/ragtail
 
-.PHONY: install test watch container run
+.PHONY: install test watch container run ragtail-seed ragtail-admin
 
 install:
 	$(UV) sync --all-groups
@@ -21,3 +22,12 @@ container:
 
 run:
 	docker run --rm -p $(PORT):8000 $(IMAGE)
+
+ragtail-seed:
+	mkdir -p $(RAGTAIL_DIR)/data
+	cd $(RAGTAIL_DIR) && $(UV) run ragtail-seeddb --language-code de --display-name Deutsch --noinput
+
+ragtail-admin:
+	@test -n "$(USERNAME)" && test -n "$(EMAIL)" && test -n "$(PASSWORD)" || (echo "USERNAME, EMAIL und PASSWORD setzen, z. B. make ragtail-admin USERNAME=admin EMAIL=a@b.de PASSWORD=secret"; exit 1)
+	mkdir -p $(RAGTAIL_DIR)/data
+	cd $(RAGTAIL_DIR) && $(UV) run ragtail-createsuperuser --username "$(USERNAME)" --email "$(EMAIL)" --password "$(PASSWORD)" --noinput $(if $(UPDATE),--update,)
