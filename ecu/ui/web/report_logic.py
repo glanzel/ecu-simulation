@@ -5,6 +5,7 @@ Auswertungsseite: reine Logik (Zahlen/Zeichenketten/Rasterdaten), keine JSX.
 from __future__ import annotations
 
 from ecu.simulation.report_aggregates import BoundaryYearSummary, YearlyEcuSummary
+from ecu.ui.web.i18n import SimulationI18n
 from ecu.ui.web.view_model import BoundarySection, MonthRow
 
 # Für Tailwind-JIT: alle grid-cols-n als Literale in Templates verwenden.
@@ -32,12 +33,6 @@ FORM_INPUT: str = (
     "w-full border border-slate-200 rounded-sm px-2 py-1.5 text-sm text-slate-800 "
     "bg-white focus:outline-none focus:ring-1 focus:ring-report-accent/40"
 )
-
-RUN_PARAMS_HDR: list[str] = ["ecumenge_ziel_J", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"]
-YEARLY_ECU_HDR: list[str] = ["Jahr", "Ecu VEJ-Ziel ges. (Jahr)", "Slack", "Ø Auslast."]
-MONTH_HDR: list[str] = ["Mon", "p", "VEJ-Ist", "Ecu VEJ-Ist", "Demand", "VET-Ziel", "Ist / VET-Ziel %"]
-YEAR_HDR: list[str] = ["Jahr", "Ø p", "Σ VEJ-Ist", "Σ Demand", "Σ Ecu VEJ-Ist", "VEJ-Ziel", "Σ Ist / Ziel %"]
-BOUNDARY_SUMMARY_HDR: list[str] = ["Grenze", "Σ VEJ-Ist", "Σ Demand", "Σ Ecu VEJ-Ist", "VEJ-Ziel", "Σ Ist / Ziel %"]
 
 
 def fmt_num(x: float, prec: int = 6) -> str:
@@ -149,3 +144,7 @@ def boundary_summary_row(section: BoundarySection) -> list[str]:
         fmt_num(t.vej_ziel),
         fmt_pct(t.pct_vej_ist_jahr_vs_vej_ziel),
     ]
+
+
+def table_headers(i18n: SimulationI18n, table_key: str) -> list[str]:
+    return i18n.text_list(f"tables.{table_key}")

@@ -1,0 +1,84 @@
+{
+  "page_title": "ECU — Simulation",
+  "errors": {
+    "prefix": "Error",
+    "no_results": "No results."
+  },
+  "setup": {
+    "title": "Configure run",
+    "expand": "expand",
+    "collapse": "collapse",
+    "label_ecumenge_ziel_J": "ecumenge_ziel_J",
+    "label_periods": "Years (periods)",
+    "label_budget": "Budget (consumption_budget)",
+    "label_seed": "Seed",
+    "label_demand_noise": "σ demand (demand_noise_std)",
+    "label_epsilon_noise": "σ elasticity (epsilon_noise_std)",
+    "label_price_cap": "Price cap % (price_max_bundle_scale_pct)",
+    "label_warmup_months": "Warmup months (price_elasticity_warmup_months)",
+    "label_growth": "Growth — index/year per boundary (100 = baseline)",
+    "growth_order_prefix": "Order: ",
+    "growth_separators": ". Separators: | or ; or comma.",
+    "label_start_demand": "Initial demand — % of VEJ target per boundary",
+    "start_demand_order": "Same order as growth.",
+    "submit": "Start simulation",
+    "get_hint": "Parameters are submitted via GET to {path}.",
+    "seed_optional": "optional"
+  },
+  "sections": {
+    "run_params": "Run parameters",
+    "warmup": "Warmup — shadow prices (without aligning annual ECU VEJ target to ecumenge_ziel_J)",
+    "yearly_ecu": "Annual overview — ECU (all boundaries)",
+    "charts": "Charts",
+    "boundaries": "Boundaries"
+  },
+  "run_params": {
+    "ecumenge_note_label": "ecumenge_ziel_J / ecumenge_J (start)",
+    "ecumenge_note_suffix": " — ecumenge_J = simulated effective annual amount for the first ecumenge_T (÷12).",
+    "growth_label": "Growth (index/year, 100 = baseline)",
+    "start_demand_label": "Initial demand (% VEJ target)"
+  },
+  "warmup": {
+    "footnote": "Only in the first N months (configuration price_elasticity_warmup_months): per boundary the step r_k relative to the previous month's price; no alignment of annual ECU VEJ target to the effective simulated annual target. Columns: monthly sum p·VET target, reference ecumenge_ziel_sim_J/12 (after ratchet if any), monthly deviation and annualized (12·Δ month)."
+  },
+  "yearly_ecu": {
+    "footnote": "Annual ECU VEJ target (bundle) = annual value Σ p_i·vej_ziel_i at the price vector at year end (account framework). In the “ECU accounts” chart the same quantity is also shown as a monthly share (÷12) alongside actual and reference lines. Slack = annual Σ p·VEJ target minus configured ecumenge_ziel_J — zero under exact normalization; on the soft path it may differ from 0 (gradual approach to simulated annual budget ecumenge_ziel_sim_J). Chart “ECU accounts”: ecumenge_ziel_sim_J (month) and ecumenge_T are separate curves (ecumenge_T = simulated monthly outflow for Σ p·c; may differ from the ratchet monthly share, e.g. in the first month). Mean util. = mean of VEJ-Ist / VET target per boundary (can be > 1)."
+  },
+  "charts": {
+    "mean_utilization_caption": "Overall utilization (mean VEJ-Ist / VET target)",
+    "ecu_totals_caption": "ECU accounts (all monthly): framework, booked, configured target, effective annual budget (ratchet), budget cap",
+    "pct_vet_ziel_caption": "Utilization per boundary (VEJ-Ist / VET target, %)",
+    "price_caption": "Shadow price per boundary (ECU / unit)",
+    "x_axis": "Month (simulation)",
+    "mean_utilization_dataset": "Mean utilization (Ø VEJ-Ist / VET target)",
+    "mean_utilization_y": "Utilization (unitless, can be > 1)",
+    "bundle_ecu_T": "bundle_ecu_T (framework, month)",
+    "ecu_ist_T": "ecu_ist_T (consumption, month)",
+    "ecumenge_ziel_J_T": "ecumenge_ziel_J_T (long-term target, configured, month)",
+    "ecumenge_ziel_sim_J_T": "ecumenge_ziel_sim_J_T (sim. target, ratchet, month)",
+    "ecumenge_T": "ecumenge_T (simulated outflow, month)",
+    "ecu_per_month_y": "ECU / month",
+    "pct_vet_ziel_y": "VEJ-Ist / VET target (%)",
+    "price_y": "Shadow price (ECU / unit)"
+  },
+  "boundaries": {
+    "intro": "Demand column = reference demand (demand_at_reference_price), same unit as VEJ-Ist / month. ECU VEJ-Ist column = p·VEJ-Ist at this boundary (booked ECU).",
+    "co2": "Climate (atmospheric CO₂)",
+    "ozone": "Stratospheric ozone",
+    "aerosol": "Atmospheric aerosol loading",
+    "ocean_acid": "Ocean acidification (Ω aragonite)",
+    "nitrogen": "Nitrogen (anthropogenic agricultural fixation)",
+    "freshwater": "Freshwater (blue water disturbance)",
+    "land": "Land use (global forest area)",
+    "hanpp": "Functional biosphere integrity (carbon appropriation)",
+    "novel": "Novel entities (chemicals / plastics etc.)"
+  },
+  "tables": {
+    "run_params_hdr": ["ecumenge_ziel_J", "Years", "Budget", "σ dem.", "σ ε", "Seed"],
+    "yearly_ecu_hdr": ["Year", "Annual ECU VEJ target (bundle)", "Slack", "Mean util."],
+    "month_hdr": ["Mon", "p", "VEJ-Ist", "ECU VEJ-Ist", "Demand", "VET target", "Actual / VET target %"],
+    "year_hdr": ["Year", "Ø p", "Σ VEJ-Ist", "Σ Demand", "Σ ECU VEJ-Ist", "VEJ target", "Σ Actual / target %"],
+    "boundary_summary_hdr": ["Boundary", "Σ VEJ-Ist", "Σ Demand", "Σ ECU VEJ-Ist", "VEJ target", "Σ Actual / target %"],
+    "warmup_diag_hdr": ["Mon", "Σ p·VET target (mo.)", "ecumenge_ziel_sim_J/12", "Δ month", "Δ year"]
+  }
+}

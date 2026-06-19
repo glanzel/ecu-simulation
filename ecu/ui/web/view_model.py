@@ -15,6 +15,7 @@ from ecu.simulation.report_aggregates import (
     months_for_calendar_year,
 )
 from ecu.simulation.simulation import PeriodResult
+from ecu.ui.web.i18n import SimulationI18n
 
 
 @dataclass
@@ -67,7 +68,7 @@ def _month_rows_for_boundary(
     return rows
 
 
-def build_boundary_sections(results: list[PeriodResult]) -> list[BoundarySection]:
+def build_boundary_sections(results: list[PeriodResult], *, i18n: SimulationI18n) -> list[BoundarySection]:
     """Eine Sektion pro Eintrag in ``ALL_BOUNDARIES`` (Reihenfolge der Konstanten)."""
     sections: list[BoundarySection] = []
     for b in ALL_BOUNDARIES:
@@ -78,7 +79,7 @@ def build_boundary_sections(results: list[PeriodResult]) -> list[BoundarySection
         sections.append(
             BoundarySection(
                 key=k,
-                label=b.label_de,
+                label=i18n.boundary_label(k, fallback=b.label_de),
                 total=total,
                 years=by_y,
             )
