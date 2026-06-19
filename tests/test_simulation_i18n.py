@@ -1,7 +1,7 @@
 """Tests für Simulations-i18n und lokalisierte Routen."""
 
-from ecu.ragtail.locale_switch import simulation_public_path
-from ecu.ui.web.i18n import simulation_i18n
+from cms.locale_switch import simulation_public_path
+from ui.web.i18n import simulation_i18n
 
 
 def test_simulation_public_path_default_without_prefix() -> None:

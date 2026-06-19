@@ -9,7 +9,8 @@ Kleines Python-Modell zu einer ökologischen Währung (ECU) an drei planetaren K
 
 ## Projekt-Layout
 
-- Importpaket: **`ecu`** (Ordner `ecu/` im Repo-Root, Unterpakete höchstens eine Ebene darunter: `ecu/logic/`, `ecu/simulation/`, `ecu/ui/`).
+- Python-Pakete im Repo-Root: `logic/`, `simulation/`, `cms/`, `ui/`
+- Zentrale Konfiguration: `oxyde_config.py`, SQLite-Datenbank unter `data/`
 - Alle folgenden Befehle gelten **im Repo-Root** (der Ordner mit `pyproject.toml`).
 
 ## Abhängigkeiten mit uv
@@ -26,13 +27,13 @@ uv sync --all-groups       # dev + web
 ## Simulation starten (CLI)
 
 ```bash
-uv run python -m ecu --periods 5
+uv run ecu-sim --periods 5
 ```
 
 Mit Seed:
 
 ```bash
-uv run python -m ecu --periods 5 --seed 1
+uv run ecu-sim --periods 5 --seed 1
 ```
 
 ## Optional: Web-Oberfläche
@@ -40,10 +41,10 @@ uv run python -m ecu --periods 5 --seed 1
 Nach `uv sync --group web`:
 
 ```bash
-uv run uvicorn ecu.ui.web.app:app --reload --reload-include '*.px'
+uv run uvicorn ui.web.app:app --reload --reload-include '*.px'
 ```
 
-**Darstellung:** [Tailwind CSS](https://tailwindcss.com/) mit [Tailwind Typography](https://github.com/tailwindlabs/tailwindcss-typography) liegt als gebaute Datei unter `ecu/ui/web/static/app.css` und wird unter `/static` ausgeliefert. Zum Neuaufbau nach Style-Änderungen: `npm run build:css` in `ecu/ui/web/`, siehe [ecu/ui/web/README.md](ecu/ui/web/README.md).
+**Darstellung:** [Tailwind CSS](https://tailwindcss.com/) mit [Tailwind Typography](https://github.com/tailwindlabs/tailwindcss-typography) liegt als gebaute Datei unter `ui/web/static/app.css` und wird unter `/static` ausgeliefert. Zum Neuaufbau nach Style-Änderungen: `npm run build:css` in `ui/web/`, siehe [ui/web/README.md](ui/web/README.md).
 
 ## Tests
 

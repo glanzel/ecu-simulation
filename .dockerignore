@@ -5,7 +5,7 @@ __pycache__
 .pytest_cache
 .mypy_cache
 .ruff_cache
-ecu/ui/web/node_modules
+ui/web/node_modules
 *.egg-info
 dist
 build

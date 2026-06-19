@@ -7,10 +7,10 @@ Ohne `-s` werden print-Ausgaben unterdrückt.
 
 from __future__ import annotations
 
-from ecu.logic.observations import BOUNDARY_KEYS
-from ecu.simulation.cli_simulation import print_boundary_tables
-from ecu.simulation.config import SimulationConfig
-from ecu.simulation.simulation import run_simulation
+from logic.observations import BOUNDARY_KEYS
+from simulation.cli_simulation import print_boundary_tables
+from simulation.config import SimulationConfig
+from simulation.simulation import run_simulation
 
 
 TOL = 1e-5
