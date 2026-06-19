@@ -1,6 +1,9 @@
 # Web-App (FastAPI + uvicorn), Abhängigkeiten wie in README: ``uv sync --group web``
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock README.md ./
 COPY ecu ./ecu
 RUN uv sync --frozen --group web --no-editable
