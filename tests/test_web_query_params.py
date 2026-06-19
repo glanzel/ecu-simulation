@@ -1,6 +1,6 @@
 """GET-Query-Hilfen für die Web-Route."""
 
-from ecu.simulation.run_params import optional_query_int
+from simulation.run_params import optional_query_int
 
 
 def test_optional_query_int_empty_string_is_none() -> None:

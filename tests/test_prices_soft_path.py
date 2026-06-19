@@ -19,15 +19,15 @@ from unittest import mock
 
 import pytest
 
-from ecu.logic.observations import (
+from logic.observations import (
     BOUNDARY_KEYS,
     DAYS_PER_MONTH,
     ConsumptionInterval,
     ConsumptionTimeline,
     MONTHS_PER_YEAR,
 )
-from ecu.logic.price_config import PriceConfig
-from ecu.logic.prices import (
+from logic.price_config import PriceConfig
+from logic.prices import (
     _clamp_shadow_prices_vs_last_by_utilization_share,
     _implied_elasticity_for_boundary,
     _raw_shadow_prices_from_timeline,
@@ -38,7 +38,7 @@ from ecu.logic.prices import (
     ratchet_ecumenge_ziel_sim_J,
     scale_percentual_to_ecu,
 )
-from ecu.simulation.simulation import build_vej_ziel_bundle, vet_ziel_from_vej_ziel
+from simulation.simulation import build_vej_ziel_bundle, vet_ziel_from_vej_ziel
 
 
 def test_mean_u_2_2_exceeds_soft_path_threshold_for_p_1():
@@ -161,7 +161,7 @@ def test_elasticity_not_called_before_warmup_months():
         p0 = dict(tl.last.shadow_prices_map())
     c_last = {k: 1.1 * vet_ziel[k] for k in BOUNDARY_KEYS}
     tl.append(ConsumptionInterval.from_observation(4, DAYS_PER_MONTH, p0, c_last, vet_ziel))
-    with mock.patch("ecu.logic.prices._implied_elasticity_for_boundary") as spy:
+    with mock.patch("logic.prices._implied_elasticity_for_boundary") as spy:
         _raw_shadow_prices_from_timeline(tl)
     assert spy.call_count == 0
 
@@ -214,6 +214,6 @@ def test_elasticity_called_after_warmup_when_overshoot():
         p0 = {k: max(1e-12, tl.last.price_for(k) * (1.002 if k == BOUNDARY_KEYS[0] else 1.0)) for k in BOUNDARY_KEYS}
     c_last = {k: 1.15 * vet_ziel[k] for k in BOUNDARY_KEYS}
     tl.append(ConsumptionInterval.from_observation(6, DAYS_PER_MONTH, p0, c_last, vet_ziel))
-    with mock.patch("ecu.logic.prices._implied_elasticity_for_boundary", wraps=_implied_elasticity_for_boundary) as spy:
+    with mock.patch("logic.prices._implied_elasticity_for_boundary", wraps=_implied_elasticity_for_boundary) as spy:
         _raw_shadow_prices_from_timeline(tl)
     assert spy.call_count == len(BOUNDARY_KEYS)

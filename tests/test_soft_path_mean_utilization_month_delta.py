@@ -16,8 +16,8 @@ Elastizität), ist das ein erwarteter Fehlschlag bis zur Anpassung der Preisfunk
 
 from __future__ import annotations
 
-from ecu.simulation.config import SimulationConfig, default_config
-from ecu.simulation.simulation import run_simulation
+from simulation.config import SimulationConfig, default_config
+from simulation.simulation import run_simulation
 
 
 def _max_mean_utilization_delta_vs_previous_month(p_pct: float) -> float:

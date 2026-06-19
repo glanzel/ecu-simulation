@@ -2,7 +2,7 @@
 ui/web/node_modules/
 
 # Ragtail-CMS (SQLite)
-ecu/ragtail/data/
+data/
 /ragtail.db
 /ragtail.db-*
 

@@ -12,6 +12,9 @@ dependencies = [
     "markdown>=3.10.2",
 ]
 
+[project.scripts]
+ecu-sim = "simulation.cli_simulation:main"
+
 [dependency-groups]
 dev = [
     "pytest>=7.0.0",
@@ -30,11 +33,15 @@ web = [
 package = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["ecu"]
+packages = ["logic", "simulation", "cms", "ui"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/ecu",
+    "/logic",
+    "/simulation",
+    "/cms",
+    "/ui",
+    "/oxyde_config.py",
     "/tests",
     "/README.md",
     "/LICENSE",

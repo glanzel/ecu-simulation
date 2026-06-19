@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from ecu.logic.initial_prices import initial_weights_uniform, prices_from_weights
-from ecu.logic.observations import BOUNDARY_KEYS
-from ecu.logic.prices import initial_shadow_prices_for_ecu
-from ecu.simulation.simulation import build_vej_ziel_bundle
+from logic.initial_prices import initial_weights_uniform, prices_from_weights
+from logic.observations import BOUNDARY_KEYS
+from logic.prices import initial_shadow_prices_for_ecu
+from simulation.simulation import build_vej_ziel_bundle
 
 
 def test_initial_shadow_matches_prices_from_weights_when_ref_vej_ist_equals_vej_ziel() -> None:
@@ -20,8 +20,8 @@ def test_initial_shadow_matches_prices_from_weights_when_ref_vej_ist_equals_vej_
 
 
 def test_ecumenge_J_not_below_ecumenge_ziel_when_overloaded_start() -> None:
-    from ecu.simulation.config import SimulationConfig
-    from ecu.simulation.simulation import ecumenge_J_from_start, run_simulation
+    from simulation.config import SimulationConfig
+    from simulation.simulation import ecumenge_J_from_start, run_simulation
 
     cfg = SimulationConfig(ecumenge_ziel_J=100.0, random_seed=0, start_demand_of_vej={k: 1.2 for k in BOUNDARY_KEYS})
     frac = cfg.resolved_start_demand()
