@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ragtail.menus import create_menu, create_menu_item, get_menu
 from ragtail.models import Locale, Page
-from ragtail.routing import get_site_for_locale
+from ragtail.sites import get_default_site
 
 
 async def seed_main_menu() -> None:
@@ -13,7 +13,7 @@ async def seed_main_menu() -> None:
     if await get_menu("main", language_code=locale.language_code) is not None:
         return
     main_menu = await create_menu(name="Hauptmenü", slug="main", locale=locale)
-    site = await get_site_for_locale(locale)
+    site = await get_default_site()
     home_page = await Page.objects.get_or_none(id=site.root_page_id) if site and site.root_page_id else None
     if home_page is not None:
         await create_menu_item(menu=main_menu, label=home_page.title or "Home", page=home_page, sort_order=0)
