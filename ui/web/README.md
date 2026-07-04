@@ -1,14 +1,14 @@
-# Web-Oberfläche (FastAPI + PyJSX)
+# Web UI (FastAPI + PyJSX)
 
 ## Styling: Tailwind CSS + Typography
 
-Die Simulation unter [`/simulation`](app.py) wird in [`simulation_view.px`](simulation_view.px) gerendert (Import über [`simulation_page.py`](simulation_page.py), PyJSX mit `# coding: jsx`). Alle Seiten laden **`/static/app.css`** (gebaut mit [Tailwind](https://tailwindcss.com/) und dem Plugin [`@tailwindcss/typography`](https://github.com/tailwindlabs/tailwindcss-typography)). [`app.py`](app.py) mountet `static/` unter `/static`; `/` leitet auf `/simulation` um.
+The simulation at [`/simulation`](app.py) is rendered in [`simulation_view.px`](simulation_view.px) (imported via [`simulation_page.py`](simulation_page.py), PyJSX with `# coding: jsx`). All pages load **`/static/app.css`** (built with [Tailwind](https://tailwindcss.com/) and the [`@tailwindcss/typography`](https://github.com/tailwindlabs/tailwindcss-typography) plugin). [`app.py`](app.py) mounts `static/` at `/static`; `/` redirects to `/simulation`.
 
-Fließtext und Überschriften liegen in einem Container mit `prose prose-slate`; Raster und `<details>` stehen in `not-prose`, damit die Typography-Defaults die Tabellen nicht verzerren.
+Body text and headings sit in a container with `prose prose-slate`; grids and `<details>` use `not-prose` so typography defaults do not distort tables.
 
-### CSS neu bauen
+### Rebuild CSS
 
-Nach Änderungen an `styles/input.css` oder an verwendeten Klassen in den `.px`-Dateien:
+After changes to `styles/input.css` or to classes used in `.px` files:
 
 ```bash
 cd ui/web
@@ -16,4 +16,4 @@ npm install
 npm run build:css
 ```
 
-Die Ausgabe ist `static/app.css` (minifiziert); diese Datei sollte mit ins Repository, damit die App ohne Node auslieferbar bleibt.
+Output is `static/app.css` (minified); commit this file so the app can be served without Node.

@@ -1,30 +1,30 @@
-# Ragtail-CMS (`cms`)
+# Ragtail CMS (`cms`)
 
-[Wagtail](https://wagtail.org/)-inspiriertes CMS auf [Ragtail](https://github.com/glanzel/ragtail) und Oxyde — getrennt von der Simulation in `ui.web`.
+[Wagtail](https://wagtail.org/)-inspired CMS built on [Ragtail](https://github.com/glanzel/ragtail) and Oxyde — separate from the simulation in `ui.web`.
 
-## Einbindung
+## Integration
 
-`ui.web.app` ruft `setup_ragtail(app)` auf (nach den festen Routen wie `/simulation`):
+`ui.web.app` calls `setup_ragtail(app)` (after fixed routes such as `/simulation`):
 
-- Admin: `/admin/` (Login erforderlich)
-- CMS-Seiten: hierarchische Pfade, z. B. `/impressum/`
-- JSON-API: `/api/cms/pages/{path}`, `/api/cms/menus/{slug}`
-- Menü „main“: Einträge erscheinen in der Header-Navigation (Simulation + CMS-Seiten)
+- Admin: `/admin/` (login required)
+- CMS pages: hierarchical paths, e.g. `/impressum/`
+- JSON API: `/api/cms/pages/{path}`, `/api/cms/menus/{slug}`
+- Menu “main”: entries appear in the header navigation (simulation + CMS pages)
 
-## Seitentyp
+## Page type
 
 `ContentPage` (`cms.pages`):
 
-| Feld | Beschreibung |
-|------|--------------|
-| `title`, `slug`, `body` | `body` = Markdown/Rich Text im Admin |
-| `live` | Seite veröffentlichen |
+| Field | Description |
+|-------|-------------|
+| `title`, `slug`, `body` | `body` = Markdown/rich text in the admin |
+| `live` | Publish page |
 
-Menü **main** wird beim ersten App-Start automatisch angelegt (`cms.seed`), sofern noch keins existiert (Site-Root + Link „Simulation“). Weitere Einträge im Admin unter **Menus**.
+Menu **main** is created automatically on first app start (`cms.seed`) if none exists yet (site root + “Simulation” link). Add more entries in the admin under **Menus**.
 
-## Datenbank
+## Database
 
-**Ragtail-CLI-Befehle immer vom Repo-Root ausführen** — dort liegt `oxyde_config.py`, die auch die laufende App nutzt (`data/ragtail.db`).
+**Always run Ragtail CLI commands from the repo root** — that is where `oxyde_config.py` lives, which the running app also uses (`data/ragtail.db`).
 
 ```bash
 uv sync --group web
@@ -33,13 +33,13 @@ uv run ragtail-seeddb --language-code de --display-name Deutsch --noinput
 uv run ragtail-createsuperuser --username admin --email admin@example.com --password secret --noinput
 ```
 
-Oder vom Repo-Root: `make ragtail-seed` und `make ragtail-admin USERNAME=… EMAIL=… PASSWORD=…`
+Or from the repo root: `make ragtail-seed` and `make ragtail-admin USERNAME=… EMAIL=… PASSWORD=…`
 
-Migrationen laufen beim App-Start über `cms.lifespan` automatisch.
+Migrations run automatically on app start via `cms.lifespan`.
 
-Im **Docker-/Coolify-Image** legt `scripts/docker-entrypoint.sh` nur das Datenverzeichnis an; Schema-Migration erfolgt beim ersten Request über den Lifespan. **`uv`** ist im Image unter `/usr/local/bin/uv` verfügbar (Projekt unter `/app`, venv unter `/app/.venv`).
+In the **Docker/Coolify image**, `scripts/docker-entrypoint.sh` only creates the data directory; schema migration happens on the first request via the lifespan. **`uv`** is available in the image at `/usr/local/bin/uv` (project at `/app`, venv at `/app/.venv`).
 
-Ragtail-CLI **im laufenden Container** (Working Directory wie lokal: Repo-Root `/app`):
+Ragtail CLI **in a running container** (working directory same as locally: repo root `/app`):
 
 ```bash
 docker exec -it <container> sh
@@ -47,16 +47,16 @@ uv run ragtail-seeddb --language-code de --display-name Deutsch --noinput
 uv run ragtail-createsuperuser --username admin --email admin@example.com --password secret --noinput
 ```
 
-Einmalig in einem frischen Container ohne laufenden Server:
+One-off in a fresh container without a running server:
 
 ```bash
 docker run --rm -it ecu-simulation:latest sh -c \
   'uv run ragtail-seeddb --language-code de --display-name Deutsch --noinput'
 ```
 
-Weitere Locales (z. B. Englisch) danach im Admin unter **Locales** anlegen oder erneut `ragtail-seeddb`/`ragtail-initdb` gemäß Ragtail-Doku — die Simulations-UI (`/en/simulation`) nutzt unabhängig davon `ui/web/locales/en.json`.
+Add further locales (e.g. English) afterwards in the admin under **Locales**, or run `ragtail-seeddb`/`ragtail-initdb` again per Ragtail docs — the simulation UI (`/en/simulation`) independently uses `ui/web/locales/en.json`.
 
-## Umgebungsvariablen
+## Environment variables
 
-- `RAGTAIL_SECRET_KEY` — Session-Geheimnis für `/admin/`
-- `RAGTAIL_DATABASE_URL` — optional, Standard: SQLite unter `data/ragtail.db`
+- `RAGTAIL_SECRET_KEY` — session secret for `/admin/`
+- `RAGTAIL_DATABASE_URL` — optional, default: SQLite at `data/ragtail.db`
