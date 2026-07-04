@@ -1,6 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./**/*.px", "./app.py", "../../cms/**/*.px"],
+  content: ["./**/*.px", "./**/*.py", "./app.py", "../../cms/**/*.px"],
+  safelist: [
+    { pattern: /^grid-cols-(?:[1-9]|1[0-2])$/ },
+  ],
   theme: {
     extend: {
       colors: {

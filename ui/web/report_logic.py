@@ -24,9 +24,13 @@ GRID_COLS: tuple[str, ...] = (
     "grid-cols-12",
 )
 
-STYLE_COLS_5_EQ: str = "grid-template-columns: repeat(5, minmax(0, 1fr))"
-STYLE_COLS_6_EQ: str = "grid-template-columns: repeat(6, minmax(0, 1fr))"
-STYLE_COLS_7_EQ: str = "grid-template-columns: repeat(7, minmax(0, 1fr))"
+def style_cols_eq(n_cols: int) -> str:
+    return f"grid-template-columns: repeat({n_cols}, minmax(0, 1fr))"
+
+
+STYLE_COLS_5_EQ: str = style_cols_eq(5)
+STYLE_COLS_6_EQ: str = style_cols_eq(6)
+STYLE_COLS_7_EQ: str = style_cols_eq(7)
 
 REPORT_GAP: str = "gap-1"
 FORM_INPUT: str = (

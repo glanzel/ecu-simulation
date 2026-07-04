@@ -85,12 +85,7 @@ def DataGrid(
         base = base + " " + extra_classes
     eff_style = style
     if eff_style is None and report_style:
-        if n_cols == 7:
-            eff_style = RL.STYLE_COLS_7_EQ
-        elif n_cols == 6:
-            eff_style = RL.STYLE_COLS_6_EQ
-        elif n_cols == 5:
-            eff_style = RL.STYLE_COLS_5_EQ
+        eff_style = RL.style_cols_eq(n_cols)
     if eff_style is None:
         grid_classes = base + " " + RL.GRID_COLS[n_cols - 1]
     else:
@@ -397,7 +392,7 @@ def YearHeaderRow(i18n, children: list | None = None) -> JSX:
         <div
             class={"grid w-full " + RL.REPORT_GAP + " bg-white"}
             role="row"
-            style={"grid-template-columns: repeat(7, minmax(0, 1fr))"}
+            style={RL.style_cols_eq(7)}
         >
             {cells}
         </div>
@@ -431,7 +426,7 @@ def YearBlock(i18n, yd: YearDetail, children: list | None = None) -> JSX:
                     "font-medium text-slate-800 items-stretch bg-white hover:bg-report-zebra "
                     "[&::-webkit-details-marker]:hidden"
                 }
-                style={"grid-template-columns: repeat(7, minmax(0, 1fr))"}
+                style={RL.style_cols_eq(7)}
             >
                 {YearSummaryCells(yd.summary)}
             </summary>
