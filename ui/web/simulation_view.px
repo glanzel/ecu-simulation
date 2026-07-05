@@ -127,13 +127,13 @@ def SimulationSetupPanel(form: WebRunFormFields, i18n, simulation_path: str, chi
                 <form method="get" action={simulation_path} class="flex flex-col gap-3 text-sm">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label class="flex flex-col gap-0.5">
-                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_ecumenge_ziel_J")}</span>
+                            <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_ecumenge_ziel")}</span>
                             <input
-                                name="ecumenge_ziel_J"
+                                name="ecumenge_ziel"
                                 type="number"
                                 step="any"
                                 required={True}
-                                value={form.ecumenge_ziel_J}
+                                value={form.ecumenge_ziel}
                                 class={RL.FORM_INPUT}
                             />
                         </label>
@@ -187,21 +187,21 @@ def SimulationSetupPanel(form: WebRunFormFields, i18n, simulation_path: str, chi
                         <label class="flex flex-col gap-0.5">
                             <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_price_cap")}</span>
                             <input
-                                name="price_max_bundle_scale_pct"
+                                name="deltagesamt_pct"
                                 type="number"
                                 step="any"
-                                value={form.price_max_bundle_scale_pct}
+                                value={form.deltagesamt_pct}
                                 class={RL.FORM_INPUT}
                             />
                         </label>
                         <label class="flex flex-col gap-0.5">
                             <span class="text-[11px] font-medium text-slate-600">{i18n.text("setup.label_warmup_months")}</span>
                             <input
-                                name="price_elasticity_warmup_months"
+                                name="preisschritt_elastizitaet_ab"
                                 type="number"
                                 min="0"
                                 max="240"
-                                value={form.price_elasticity_warmup_months}
+                                value={form.preisschritt_elastizitaet_ab}
                                 class={RL.FORM_INPUT}
                             />
                         </label>
@@ -247,7 +247,7 @@ def SimulationSetupPanel(form: WebRunFormFields, i18n, simulation_path: str, chi
 
 def RunParamsBlock(
     i18n,
-    ecumenge_ziel_J: float,
+    ecumenge_ziel: float,
     ecumenge_J: float,
     periods_years: int,
     n_months: int,
@@ -262,7 +262,7 @@ def RunParamsBlock(
     """Kompakt: eine Zeile Kernparameter, darunter Wachstum und Start-Nachfrage (Anteil VEJ-Ziel)."""
     _ = (children, n_months)
     row1 = RL.run_params_row(
-        ecumenge_ziel_J, periods_years, budget_method, demand_noise_std, epsilon_noise_std, seed
+        ecumenge_ziel, periods_years, budget_method, demand_noise_std, epsilon_noise_std, seed
     )
     gline = RL.growth_one_line(growth_by_boundary)
     sdline = RL.start_demand_one_line(start_demand_by_boundary)
@@ -270,7 +270,7 @@ def RunParamsBlock(
         <div class="border-t border-slate-100 bg-report-zebra px-2 py-1 text-[11px] text-slate-600 leading-snug">
             <span class="font-medium text-slate-500">{i18n.text("run_params.ecumenge_note_label")}</span>
             {": "}
-            {RL.fmt_num(ecumenge_ziel_J, prec=6)}
+            {RL.fmt_num(ecumenge_ziel, prec=6)}
             {" / "}
             {RL.fmt_num(ecumenge_J, prec=6)}
             {i18n.text("run_params.ecumenge_note_suffix")}
@@ -467,6 +467,12 @@ def ChartsSection(i18n, chart_data_json: str, children: list | None = None) -> J
                         <canvas id="chart-price-by-boundary"></canvas>
                     </div>
                 </div>
+                <div>
+                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.elastikfaktor_caption")}</p>
+                    <div class="relative w-full">
+                        <canvas id="chart-elastikfaktor"></canvas>
+                    </div>
+                </div>
             </div>
             <script type="application/json" id="ecu-report-chart-data">
                 {HTMLDontEscape(chart_data_json)}
@@ -508,7 +514,7 @@ def BoundaryBlock(i18n, section: BoundarySection, children: list | None = None) 
 def simulation_page(
     sections: list[BoundarySection],
     yearly_ecu: list[YearlyEcuSummary],
-    ecumenge_ziel_J: float,
+    ecumenge_ziel: float,
     ecumenge_J: float,
     periods_years: int,
     n_months: int,
@@ -543,7 +549,7 @@ def simulation_page(
             setup_panel,
             <RunParamsBlock
                 i18n={i18n}
-                ecumenge_ziel_J={ecumenge_ziel_J}
+                ecumenge_ziel={ecumenge_ziel}
                 ecumenge_J={ecumenge_J}
                 periods_years={periods_years}
                 n_months={n_months}

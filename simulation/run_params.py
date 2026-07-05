@@ -33,7 +33,7 @@ def _start_demand_percent_csv(start_demand: dict[str, float]) -> str:
 class WebRunFormFields:
     """Vorbelegung des Simulation-GET-Formulars (wirksame Werte nach ``apply_to_config``)."""
 
-    ecumenge_ziel_J: str
+    ecumenge_ziel: str
     periods: str
     growth: str
     start_demand: str
@@ -41,8 +41,8 @@ class WebRunFormFields:
     epsilon_noise_std: str
     seed: str
     consumption_budget: str
-    price_max_bundle_scale_pct: str
-    price_elasticity_warmup_months: str
+    deltagesamt_pct: str
+    preisschritt_elastizitaet_ab: str
     boundary_order_hint: str
 
     @classmethod
@@ -58,7 +58,7 @@ class WebRunFormFields:
         )
         seed_s = "" if cfg.random_seed is None else str(cfg.random_seed)
         return cls(
-            ecumenge_ziel_J=str(cfg.ecumenge_ziel_J),
+            ecumenge_ziel=str(cfg.ecumenge_ziel),
             periods=str(params.periods_years),
             growth=growth_s,
             start_demand=start_s,
@@ -66,8 +66,8 @@ class WebRunFormFields:
             epsilon_noise_std=str(cfg.epsilon_log_noise_std),
             seed=seed_s,
             consumption_budget=cfg.consumption_budget_method.value,
-            price_max_bundle_scale_pct=str(cfg.price.max_shadow_bundle_scale_pct_per_period),
-            price_elasticity_warmup_months=str(cfg.price.price_elasticity_warmup_months),
+            deltagesamt_pct=str(cfg.price.deltagesamt_pct),
+            preisschritt_elastizitaet_ab=str(cfg.price.preisschritt_elastizitaet_ab),
             boundary_order_hint=", ".join(BOUNDARY_KEYS),
         )
 
@@ -127,14 +127,14 @@ class RunParams:
     ``growth``: **Index** je Grenze (ganze Zahlen wie 100, 110, 90): Jahresfaktor = Index/100
     (100 = kein Wachstum, 110 = +10 %, 90 = −10 % **pro Jahr**; pro Zeitschritt ``(Index/100)^(1/steps_per_year)``,
     vgl. ``run_simulation(..., steps_per_year=…)`` — Standard 12 Monate, später z. B. 365 täglich).
-    ``start_demand``: Anteil der VEJ in % (Anteil = p/100).
-    ``price_max_bundle_scale_pct`` (optional): p in % — u. a. weicher ECU-Ratchet, harter Σ p·VEJ-Ziel-Pfad,
+    ``start_demand``: Anteil der BudgetJ in % (Anteil = p/100).
+    ``deltagesamt_pct`` (optional): p in % — u. a. weicher ECU-Ratchet, harter Σ ecu_preis·BudgetJ-Ziel-Pfad,
     Rohpreis-Kappen; Standard aus ``PriceConfig``.
-    ``price_elasticity_warmup_months`` (optional): Ab N abgeschlossenen Monaten Elastizität (OLS);
+    ``preisschritt_elastizitaet_ab`` (optional): Ab N abgeschlossenen Monaten Elastizität (OLS);
     gleiche N als Mindestzahl gültiger Historienpunkte; davor nur Bump + weiche Staffel.
     """
 
-    ecumenge_ziel_J: float | None = None
+    ecumenge_ziel: float | None = None
     periods_years: int = 5
     growth_csv: str | None = None
     start_demand_csv: str | None = None
@@ -142,13 +142,13 @@ class RunParams:
     epsilon_noise_std: float | None = None
     seed: int | None = None
     consumption_budget: str | None = None
-    max_shadow_bundle_scale_pct_per_period: float | None = None
-    price_elasticity_warmup_months: int | None = None
+    deltagesamt_pct: float | None = None
+    preisschritt_elastizitaet_ab: int | None = None
 
     @classmethod
     def from_argparse(cls, ns: argparse.Namespace) -> RunParams:
         return cls(
-            ecumenge_ziel_J=ns.ecumenge_ziel_J,
+            ecumenge_ziel=ns.ecumenge_ziel,
             periods_years=ns.periods,
             growth_csv=ns.growth,
             start_demand_csv=getattr(ns, "start_demand", None),
@@ -156,18 +156,18 @@ class RunParams:
             epsilon_noise_std=ns.epsilon_noise_std,
             seed=ns.seed,
             consumption_budget=ns.consumption_budget,
-            max_shadow_bundle_scale_pct_per_period=getattr(
-                ns, "price_max_bundle_scale_pct", None
+            deltagesamt_pct=getattr(
+                ns, "deltagesamt_pct", None
             ),
-            price_elasticity_warmup_months=getattr(
-                ns, "price_elasticity_warmup_months", None
+            preisschritt_elastizitaet_ab=getattr(
+                ns, "preisschritt_elastizitaet_ab", None
             ),
         )
 
     def apply_to_config(self, cfg: SimulationConfig) -> None:
         """Überträgt gesetzte Felder auf ``cfg`` (None = Konfiguration unverändert)."""
-        if self.ecumenge_ziel_J is not None:
-            cfg.ecumenge_ziel_J = self.ecumenge_ziel_J
+        if self.ecumenge_ziel is not None:
+            cfg.ecumenge_ziel = self.ecumenge_ziel
         if self.demand_noise_std is not None:
             cfg.demand_at_reference_price_log_noise_std = self.demand_noise_std
         if self.epsilon_noise_std is not None:
@@ -178,16 +178,16 @@ class RunParams:
             cfg.consumption_budget_method = ConsumptionBudgetMethod(self.consumption_budget)
         if self.start_demand_csv is not None:
             vals = parse_float_list(self.start_demand_csv, len(BOUNDARY_KEYS), "start_demand")
-            cfg.start_demand_of_vej = {
+            cfg.start_nutzung_anteil_budget = {
                 BOUNDARY_KEYS[i]: RunParams._start_demand_percent_to_fraction(vals[i])
                 for i in range(len(BOUNDARY_KEYS))
             }
-        if self.max_shadow_bundle_scale_pct_per_period is not None:
-            cfg.price.max_shadow_bundle_scale_pct_per_period = (
-                self.max_shadow_bundle_scale_pct_per_period
+        if self.deltagesamt_pct is not None:
+            cfg.price.deltagesamt_pct = (
+                self.deltagesamt_pct
             )
-        if self.price_elasticity_warmup_months is not None:
-            cfg.price.price_elasticity_warmup_months = int(self.price_elasticity_warmup_months)
+        if self.preisschritt_elastizitaet_ab is not None:
+            cfg.price.preisschritt_elastizitaet_ab = int(self.preisschritt_elastizitaet_ab)
 
     def growth_per_boundary(self) -> dict[str, float]:
         """Multiplikativer Jahresfaktor pro Grenze; Eingabe als Index (100 = Faktor 1)."""
@@ -211,7 +211,7 @@ class RunParams:
     def from_web_query(
         cls,
         *,
-        ecumenge_ziel_J: float | None = None,
+        ecumenge_ziel: float | None = None,
         periods: int = 5,
         growth: str | None = None,
         start_demand: str | None = None,
@@ -219,12 +219,12 @@ class RunParams:
         epsilon_noise_std: float | None = None,
         seed: int | None = None,
         consumption_budget: str | None = None,
-        price_max_bundle_scale_pct: float | None = None,
-        price_elasticity_warmup_months: int | None = None,
+        deltagesamt_pct: float | None = None,
+        preisschritt_elastizitaet_ab: int | None = None,
     ) -> RunParams:
         """Parameter wie bei FastAPI-``Query``-Defaults (fehlende Optionals = Konfig-Default)."""
         return cls(
-            ecumenge_ziel_J=ecumenge_ziel_J,
+            ecumenge_ziel=ecumenge_ziel,
             periods_years=periods,
             growth_csv=growth,
             start_demand_csv=start_demand,
@@ -232,8 +232,8 @@ class RunParams:
             epsilon_noise_std=epsilon_noise_std,
             seed=seed,
             consumption_budget=consumption_budget,
-            max_shadow_bundle_scale_pct_per_period=price_max_bundle_scale_pct,
-            price_elasticity_warmup_months=price_elasticity_warmup_months,
+            deltagesamt_pct=deltagesamt_pct,
+            preisschritt_elastizitaet_ab=preisschritt_elastizitaet_ab,
         )
 
     def to_url_query(self) -> str:
@@ -246,8 +246,8 @@ class RunParams:
             return quote(str(v), safe="")
 
         items: list[tuple[str, str]] = [("periods", str(self.periods_years))]
-        if self.ecumenge_ziel_J is not None:
-            items.append(("ecumenge_ziel_J", str(self.ecumenge_ziel_J)))
+        if self.ecumenge_ziel is not None:
+            items.append(("ecumenge_ziel", str(self.ecumenge_ziel)))
         if self.growth_csv is not None:
             items.append(("growth", self.growth_csv))
         if self.start_demand_csv is not None:
@@ -260,15 +260,15 @@ class RunParams:
             items.append(("seed", str(self.seed)))
         if self.consumption_budget is not None:
             items.append(("consumption_budget", self.consumption_budget))
-        if self.max_shadow_bundle_scale_pct_per_period is not None:
+        if self.deltagesamt_pct is not None:
             items.append(
                 (
-                    "price_max_bundle_scale_pct",
-                    str(self.max_shadow_bundle_scale_pct_per_period),
+                    "deltagesamt_pct",
+                    str(self.deltagesamt_pct),
                 )
             )
-        if self.price_elasticity_warmup_months is not None:
+        if self.preisschritt_elastizitaet_ab is not None:
             items.append(
-                ("price_elasticity_warmup_months", str(self.price_elasticity_warmup_months))
+                ("preisschritt_elastizitaet_ab", str(self.preisschritt_elastizitaet_ab))
             )
         return "&".join(f"{k}={enc(k, v)}" for k, v in items)

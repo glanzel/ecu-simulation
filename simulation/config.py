@@ -1,4 +1,4 @@
-"""Laufzeit-Konfiguration: ecumenge_ziel_J, Referenzpreise, Elastizitäten, Nachfrage-Basis, Preis-Kybernetik."""
+"""Laufzeit-Konfiguration: ecumenge_ziel, Referenzpreise, Elastizitäten, Nachfrage-Basis, Preis-Kybernetik."""
 
 from __future__ import annotations
 
@@ -19,32 +19,32 @@ _DEFAULT_LOG_NOISE_STD_FOR_CA_ONE_PERCENT: float = math.log(1.01)
 class SimulationConfig:
     """Startwerte für ECU-Jahresziel, dynamische Anpassung, Nachfrageparameter; Preislogik in ``price``."""
 
-    # Verteiltes ECU-Jahresvolumen (konstant): Ziel ``Σ p·VEJ-Ziel = ecumenge_ziel_J``
+    # Verteiltes ECU-Jahresvolumen (konstant): Ziel ``Σ ecu_preis·BudgetJ-Ziel = ecumenge_ziel``
     # über gemeinsame Preisskalierung, nicht durch Änderung der Jahresmenge.
-    ecumenge_ziel_J: float = 100_000.0
-    # Referenz-Schattenpreis p_ref,i (ECU/Einh.); Fallback: Start-Schattenpreis nach Normierung auf ecumenge_ziel_J
+    ecumenge_ziel: float = 100_000.0
+    # Referenz-ECU-Preis p_ref,i (ECU/Einh.); Fallback: Start-ECU-Preis nach Normierung auf ecumenge_ziel
     p_ref: Mapping[str, float] = field(default_factory=dict)
     # Konstante Preiselastizität ε_i < 0
     epsilon: Mapping[str, float] = field(default_factory=dict)
-    # Anteil f_i am VEJ-Ziel: D_i(p_ref) = f_i·vet_ziel_i (Referenznachfrage; Startanker der Kurve).
-    # Start-Schattenpreise (Bootstrap): ``p_i = w_i·ecumenge_budget_J/vej_ist_i`` mit jährlichem Referenz-``vej_ist_i`` =
-    # ``f_i·vej_ziel_i``; ``Σ p_i·vej_ist_i = ecumenge_budget_J`` (keine Nachskalierung).
+    # Anteil f_i am BudgetJ: D_i(p_ref) = f_i·budget_T_i (Referenznachfrage; Startanker der Kurve).
+    # Start-ECU-Preise (Bootstrap): ``p_i = w_i·ecumenge_budget_J/nutzung_T_i`` mit jährlichem Referenz-``nutzung_T_i`` =
+    # ``f_i·budget_J_i``; ``Σ p_i·nutzung_T_i = ecumenge_budget_J`` (keine Nachskalierung).
     # Fehlende Schlüssel: ``BoundaryConstants.start_demand_percent`` / 100 je Grenze in ``ALL_BOUNDARIES``.
-    start_demand_of_vej: Mapping[str, float] = field(default_factory=dict)
+    start_nutzung_anteil_budget: Mapping[str, float] = field(default_factory=dict)
     # Pro Periode (nach Wachstum): demand_at_reference_price *= exp(Z), Z ~ N(0, σ); σ wie Modulkonstante.
     demand_at_reference_price_log_noise_std: float = _DEFAULT_LOG_NOISE_STD_FOR_CA_ONE_PERCENT
     # Pro Periode: ε_i *= exp(Z), Z ~ N(0, σ); gleiche σ-Wahl wie Nachfrage-Rauschen.
     epsilon_log_noise_std: float = _DEFAULT_LOG_NOISE_STD_FOR_CA_ONE_PERCENT
     # Optional: RNG-Seed für reproduzierbare Läufe (None = nicht setzen)
     random_seed: int | None = None
-    # Kybernetik der Schattenpreise (Schattenpreisfindung aus Timeline)
+    # Kybernetik der ECU-Preise (ECU-Preisfindung aus Timeline)
     price: PriceConfig = field(default_factory=PriceConfig)
-    # Roh-Nachfrage gegen ECU-Obergrenze pro Monat: Σ p·c ≤ ecumenge_ziel_J/12 (reine ECU-Kappung, kein vej_ziel im Budget)
+    # Roh-Nachfrage gegen ECU-Obergrenze pro Monat: Σ p·c ≤ ecumenge_ziel/12 (reine ECU-Kappung, kein budget_J im Budget)
     consumption_budget_method: ConsumptionBudgetMethod = ConsumptionBudgetMethod.SCALE
 
-    def resolved_p_ref(self, initial_prices: dict[str, float]) -> dict[str, float]:
-        """p_ref: explizit oder Fallback auf initial normierte Schattenpreise."""
-        out = dict(initial_prices)
+    def resolved_p_ref(self, initial_ecu_preise: dict[str, float]) -> dict[str, float]:
+        """p_ref: explizit oder Fallback auf initial normierte ECU-Preise."""
+        out = dict(initial_ecu_preise)
         for k in BOUNDARY_KEYS:
             if k in self.p_ref and self.p_ref[k] > 0:
                 out[k] = float(self.p_ref[k])
@@ -56,7 +56,7 @@ class SimulationConfig:
 
     def resolved_start_demand(self) -> dict[str, float]:
         defaults = default_start_demand_by_key()
-        return {k: float(self.start_demand_of_vej.get(k, defaults[k])) for k in BOUNDARY_KEYS}
+        return {k: float(self.start_nutzung_anteil_budget.get(k, defaults[k])) for k in BOUNDARY_KEYS}
 
 
 def default_config() -> SimulationConfig:

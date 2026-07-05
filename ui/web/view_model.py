@@ -21,12 +21,12 @@ from ui.web.i18n import SimulationI18n
 @dataclass
 class MonthRow:
     period: int
-    price: float
-    vej_ist: float
+    ecu_preis: float
+    nutzung_T: float
     pc: float
     demand: float
-    vet_ziel: float
-    pct_vet_ziel: float
+    budget_T: float
+    pct_budget_T: float
 
 
 @dataclass
@@ -50,19 +50,19 @@ def _month_rows_for_boundary(
     rows: list[MonthRow] = []
     for r in results:
         p = r.prices[boundary_key]
-        c = r.vej_ist[boundary_key]
-        v = r.vet_ziel[boundary_key]
+        c = r.nutzung_T[boundary_key]
+        v = r.budget_T[boundary_key]
         pc = p * c
         pct = (100.0 * c / v) if v > 0 else float("nan")
         rows.append(
             MonthRow(
                 period=r.period,
-                price=p,
-                vej_ist=c,
+                ecu_preis=p,
+                nutzung_T=c,
                 pc=pc,
                 demand=r.demand_at_reference_price[boundary_key],
-                vet_ziel=v,
-                pct_vet_ziel=pct,
+                budget_T=v,
+                pct_budget_T=pct,
             )
         )
     return rows

@@ -31,14 +31,14 @@ class ConsumptionBudgetMethod(str, Enum):
 
 def bundle_expenditure(
     prices: dict[str, float],
-    vej_ist: dict[str, float],
+    nutzung_T: dict[str, float],
 ) -> float:
-    """``Σ_i p_i · vej_ist_i`` (verbuchte ECU im Abrechnungszeitraum, hier pro Monat)."""
-    return sum(prices[k] * vej_ist[k] for k in BOUNDARY_KEYS)
+    """``Σ_i p_i · nutzung_T_i`` (verbuchte ECU im Abrechnungszeitraum, hier pro Monat)."""
+    return sum(prices[k] * nutzung_T[k] for k in BOUNDARY_KEYS)
 
 
 def apply_consumption_budget(
-    raw_vej_ist: dict[str, float],
+    raw_nutzung_T: dict[str, float],
     prices: dict[str, float],
     ecumenge_T: float,
     method: ConsumptionBudgetMethod,
@@ -49,32 +49,32 @@ def apply_consumption_budget(
     """
     if ecumenge_T <= 0:
         raise ValueError("ecumenge_T muss positiv sein.")
-    spend = bundle_expenditure(prices, raw_vej_ist)
+    spend = bundle_expenditure(prices, raw_nutzung_T)
     if spend <= ecumenge_T + _BUDGET_TOL:
-        return {k: raw_vej_ist[k] for k in BOUNDARY_KEYS}
+        return {k: raw_nutzung_T[k] for k in BOUNDARY_KEYS}
     if spend <= 0:
         raise ValueError(
             "Σ p·c̃ übersteigt die ECU-Obergrenze, ist aber nicht positiv — ungültige Rohdaten."
         )
     if method == ConsumptionBudgetMethod.SCALE:
-        return _apply_scale_when_over(raw_vej_ist, prices, ecumenge_T, spend)
+        return _apply_scale_when_over(raw_nutzung_T, prices, ecumenge_T, spend)
     if method == ConsumptionBudgetMethod.LAGRANGE:
-        return _apply_lagrange_project_demands(raw_vej_ist, prices, ecumenge_T)
+        return _apply_lagrange_project_demands(raw_nutzung_T, prices, ecumenge_T)
     raise ValueError(f"unbekannte ConsumptionBudgetMethod: {method!r}")
 
 
 def _apply_scale_when_over(
-    raw_vej_ist: dict[str, float],
+    raw_nutzung_T: dict[str, float],
     prices: dict[str, float],
     ecumenge_T: float,
     spend: float,
 ) -> dict[str, float]:
     scale = ecumenge_T / spend
-    return {k: raw_vej_ist[k] * scale for k in BOUNDARY_KEYS}
+    return {k: raw_nutzung_T[k] * scale for k in BOUNDARY_KEYS}
 
 
 def _expenditure_at_lambda(
-    raw_vej_ist: dict[str, float],
+    raw_nutzung_T: dict[str, float],
     prices: dict[str, float],
     lam: float,
 ) -> float:
@@ -83,28 +83,28 @@ def _expenditure_at_lambda(
     for k in BOUNDARY_KEYS:
         pk = prices[k]
         if pk <= 0:
-            raise ValueError(f"Schattenpreis für {k!r} muss positiv sein.")
-        out += pk * max(0.0, raw_vej_ist[k] - lam * pk)
+            raise ValueError(f"ECU-Preis für {k!r} muss positiv sein.")
+        out += pk * max(0.0, raw_nutzung_T[k] - lam * pk)
     return out
 
 
 def _apply_lagrange_project_demands(
-    raw_vej_ist: dict[str, float],
+    raw_nutzung_T: dict[str, float],
     prices: dict[str, float],
     ecumenge_T: float,
 ) -> dict[str, float]:
     """Minimiert ``Σ (c_k − c̃_k)²`` bei ``Σ p·c = E``, ``c_k ≥ 0`` → ``c_k = max(0, c̃_k − λ p_k)``."""
     hi = 1.0
-    while _expenditure_at_lambda(raw_vej_ist, prices, hi) > ecumenge_T + _BUDGET_TOL:
+    while _expenditure_at_lambda(raw_nutzung_T, prices, hi) > ecumenge_T + _BUDGET_TOL:
         hi *= 2.0
         if hi > 1e100:
             raise ValueError("Lagrange-Projektion: keine gültige λ-Obergrenze.")
     lo = 0.0
     for _ in range(90):
         mid = 0.5 * (lo + hi)
-        if _expenditure_at_lambda(raw_vej_ist, prices, mid) > ecumenge_T:
+        if _expenditure_at_lambda(raw_nutzung_T, prices, mid) > ecumenge_T:
             lo = mid
         else:
             hi = mid
     lam = 0.5 * (lo + hi)
-    return {k: max(0.0, raw_vej_ist[k] - lam * prices[k]) for k in BOUNDARY_KEYS}
+    return {k: max(0.0, raw_nutzung_T[k] - lam * prices[k]) for k in BOUNDARY_KEYS}

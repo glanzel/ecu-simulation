@@ -1,4 +1,4 @@
-"""Domänenlogik: planetare Konstanten, VEJ, Beobachtungen, Schattenpreise, Tauschkurs."""
+"""Domänenlogik: planetare Konstanten, VEJ, Beobachtungen, ECU-Preise, Tauschkurs."""
 
 from logic.observations import (
     BOUNDARY_KEYS,

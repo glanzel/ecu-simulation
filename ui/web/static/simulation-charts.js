@@ -63,6 +63,7 @@
     var c2 = document.getElementById("chart-ecu-totals");
     var c3 = document.getElementById("chart-pct-vet-ziel");
     var c4 = document.getElementById("chart-price-by-boundary");
+    var c5 = document.getElementById("chart-elastikfaktor");
     if (c1) {
       new Chart(c1, {
         type: "line",
@@ -70,7 +71,7 @@
           labels: labels,
           datasets: [
             {
-              label: label(payload, "mean_utilization_dataset", "Mean utilization"),
+              label: label(payload, "gesamtauslastung_dataset", "Mean utilization"),
               data: payload.meanUtilization,
               borderColor: colors[0],
               backgroundColor: "rgba(13,148,136,0.08)",
@@ -81,7 +82,7 @@
             },
           ],
         },
-        options: baseLineOptions(payload, "mean_utilization_y", "Utilization"),
+        options: baseLineOptions(payload, "gesamtauslastung_y", "Utilization"),
       });
     }
     if (c2) {
@@ -91,8 +92,8 @@
           labels: labels,
           datasets: [
             {
-              label: label(payload, "bundle_ecu_T", "bundle_ecu_T"),
-              data: payload.bundle_ecu_T,
+              label: label(payload, "ecumenge_kontenrahmen_T", "ecumenge_kontenrahmen_T"),
+              data: payload.ecumenge_kontenrahmen_T,
               borderColor: colors[1],
               tension: 0.15,
               fill: false,
@@ -109,8 +110,8 @@
               borderWidth: 2,
             },
             {
-              label: label(payload, "ecumenge_ziel_J_T", "ecumenge_ziel_J_T"),
-              data: payload.ecumenge_ziel_J_T,
+              label: label(payload, "ecumenge_ziel_T", "ecumenge_ziel_T"),
+              data: payload.ecumenge_ziel_T,
               borderColor: colors[3],
               tension: 0,
               fill: false,
@@ -119,8 +120,8 @@
               borderDash: [6, 4],
             },
             {
-              label: label(payload, "ecumenge_ziel_sim_J_T", "ecumenge_ziel_sim_J_T"),
-              data: payload.ecumenge_ziel_sim_J_T,
+              label: label(payload, "ecumenge_ziel_sim_T", "ecumenge_ziel_sim_T"),
+              data: payload.ecumenge_ziel_sim_T,
               borderColor: colors[4],
               tension: 0.15,
               fill: false,
@@ -162,7 +163,7 @@
       new Chart(c3, {
         type: "line",
         data: { labels: labels, datasets: ds3 },
-        options: baseLineOptions(payload, "pct_vet_ziel_y", "VEJ-Ist / VET target (%)"),
+        options: baseLineOptions(payload, "pct_budget_T_y", "NutzungT / VET target (%)"),
       });
     }
     if (c4 && payload.priceSeries) {
@@ -185,6 +186,28 @@
         type: "line",
         data: { labels: labels, datasets: ds4 },
         options: baseLineOptions(payload, "price_y", "Shadow price (ECU / unit)"),
+      });
+    }
+    if (c5 && payload.elastikfaktorSeries) {
+      var ds5 = [];
+      for (var k = 0; k < boundaries.length; k++) {
+        var b3 = boundaries[k];
+        var col3 = colors[k % colors.length];
+        ds5.push({
+          label: b3.label || b3.key,
+          data: payload.elastikfaktorSeries[k],
+          borderColor: col3,
+          backgroundColor: "transparent",
+          tension: 0.15,
+          fill: false,
+          pointRadius: 0,
+          borderWidth: 1.5,
+        });
+      }
+      new Chart(c5, {
+        type: "line",
+        data: { labels: labels, datasets: ds5 },
+        options: baseLineOptions(payload, "elastikfaktor_y", "Elasticity factor"),
       });
     }
   }

@@ -51,7 +51,7 @@ async def _render_simulation(
     request: Request,
     language_code: str,
     *,
-    ecumenge_ziel_J: float | None = None,
+    ecumenge_ziel: float | None = None,
     periods: int = 5,
     growth: str | None = None,
     start_demand: str | None = None,
@@ -59,15 +59,15 @@ async def _render_simulation(
     epsilon_noise_std: float | None = None,
     seed: str | None = None,
     consumption_budget: str | None = None,
-    price_max_bundle_scale_pct: float | None = None,
-    price_elasticity_warmup_months: int | None = None,
+    deltagesamt_pct: float | None = None,
+    preisschritt_elastizitaet_ab: int | None = None,
 ) -> HTMLResponse:
     i18n = simulation_i18n(language_code)
     default = await get_default_locale()
     default_code = default.language_code if default else "de"
     simulation_path = simulation_public_path(language_code, default_language_code=default_code)
     params = RunParams.from_web_query(
-        ecumenge_ziel_J=ecumenge_ziel_J,
+        ecumenge_ziel=ecumenge_ziel,
         periods=periods,
         growth=growth,
         start_demand=start_demand,
@@ -75,8 +75,8 @@ async def _render_simulation(
         epsilon_noise_std=epsilon_noise_std,
         seed=optional_query_int(seed),
         consumption_budget=consumption_budget,
-        price_max_bundle_scale_pct=price_max_bundle_scale_pct,
-        price_elasticity_warmup_months=price_elasticity_warmup_months,
+        deltagesamt_pct=deltagesamt_pct,
+        preisschritt_elastizitaet_ab=preisschritt_elastizitaet_ab,
     )
     cfg = default_config()
     try:
@@ -99,7 +99,7 @@ async def _render_simulation(
     page = simulation_page(
         sections=sections,
         yearly_ecu=yearly_ecu_summaries(results),
-        ecumenge_ziel_J=last.ecumenge_ziel_J,
+        ecumenge_ziel=last.ecumenge_ziel,
         ecumenge_J=last.ecumenge_J,
         periods_years=params.periods_years,
         n_months=len(results),
@@ -127,7 +127,7 @@ async def _render_simulation(
 @app.get("/simulation", response_class=HTMLResponse)
 async def simulation_default(
     request: Request,
-    ecumenge_ziel_J: float | None = Query(None),
+    ecumenge_ziel: float | None = Query(None),
     periods: int = Query(5, ge=1, le=500),
     growth: str | None = Query(None),
     start_demand: str | None = Query(None),
@@ -135,15 +135,15 @@ async def simulation_default(
     epsilon_noise_std: float | None = Query(None),
     seed: str | None = Query(None),
     consumption_budget: str | None = Query(None),
-    price_max_bundle_scale_pct: float | None = Query(None),
-    price_elasticity_warmup_months: int | None = Query(None, ge=0, le=240),
+    deltagesamt_pct: float | None = Query(None),
+    preisschritt_elastizitaet_ab: int | None = Query(None, ge=0, le=240),
 ) -> HTMLResponse:
     default = await get_default_locale()
     language_code = default.language_code if default else "de"
     return await _render_simulation(
         request,
         language_code,
-        ecumenge_ziel_J=ecumenge_ziel_J,
+        ecumenge_ziel=ecumenge_ziel,
         periods=periods,
         growth=growth,
         start_demand=start_demand,
@@ -151,8 +151,8 @@ async def simulation_default(
         epsilon_noise_std=epsilon_noise_std,
         seed=seed,
         consumption_budget=consumption_budget,
-        price_max_bundle_scale_pct=price_max_bundle_scale_pct,
-        price_elasticity_warmup_months=price_elasticity_warmup_months,
+        deltagesamt_pct=deltagesamt_pct,
+        preisschritt_elastizitaet_ab=preisschritt_elastizitaet_ab,
     )
 
 
@@ -160,7 +160,7 @@ async def simulation_default(
 async def simulation_localized(
     request: Request,
     language_code: str,
-    ecumenge_ziel_J: float | None = Query(None),
+    ecumenge_ziel: float | None = Query(None),
     periods: int = Query(5, ge=1, le=500),
     growth: str | None = Query(None),
     start_demand: str | None = Query(None),
@@ -168,8 +168,8 @@ async def simulation_localized(
     epsilon_noise_std: float | None = Query(None),
     seed: str | None = Query(None),
     consumption_budget: str | None = Query(None),
-    price_max_bundle_scale_pct: float | None = Query(None),
-    price_elasticity_warmup_months: int | None = Query(None, ge=0, le=240),
+    deltagesamt_pct: float | None = Query(None),
+    preisschritt_elastizitaet_ab: int | None = Query(None, ge=0, le=240),
 ) -> HTMLResponse:
     locale = await get_locale(language_code.strip().lower())
     if locale is None:
@@ -182,7 +182,7 @@ async def simulation_localized(
     return await _render_simulation(
         request,
         locale.language_code,
-        ecumenge_ziel_J=ecumenge_ziel_J,
+        ecumenge_ziel=ecumenge_ziel,
         periods=periods,
         growth=growth,
         start_demand=start_demand,
@@ -190,8 +190,8 @@ async def simulation_localized(
         epsilon_noise_std=epsilon_noise_std,
         seed=seed,
         consumption_budget=consumption_budget,
-        price_max_bundle_scale_pct=price_max_bundle_scale_pct,
-        price_elasticity_warmup_months=price_elasticity_warmup_months,
+        deltagesamt_pct=deltagesamt_pct,
+        preisschritt_elastizitaet_ab=preisschritt_elastizitaet_ab,
     )
 
 

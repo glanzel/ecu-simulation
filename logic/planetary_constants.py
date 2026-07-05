@@ -18,7 +18,7 @@ im Paper zitiert); Süßwasser **18,2 %** Landfläche mit Abweichung (Ref. 46 = 
 *Nature Water* 2024 u. a.); Kunststoffproduktion **+4,1 %** (2023→2024): PlasticsEurope
 „The Fast Facts 2025“.
 
-``start_demand_percent`` ist **100 × (Ist-Kontrollgröße) / (Modell-VEJ)**, sobald beide
+``start_demand_percent`` ist **100 × (Ist-Kontrollgröße) / (Modell-BudgetJ)**, sobald beide
 dieselbe Einheit tragen; sonst **100 × Ist / (AG−VK)** bzw. dokumentierter Quotient
 (z. B. Ozon: DU-Defizit relativ zum DU-Korridor).
 """
@@ -85,8 +85,8 @@ PLASTICS_PRODUCTION_GROWTH_PCT_YR: float = 4.1
 OCEAN_OMEGA_ARAG_RELATIVE_DECLINE_PCT_YR: float = -0.29
 
 
-def co2_vej_mt_per_year() -> float:
-    """Jährliches VEJ (Mt CO₂/a) aus Steffen-Grenze 350 ppm, PI 280 ppm, RZ."""
+def co2_budget_J_mt_per_year() -> float:
+    """Jährliches BudgetJ (Mt CO₂/a) aus Steffen-Grenze 350 ppm, PI 280 ppm, RZ."""
     return (
         (CO2_PPM_BOUNDARY - CO2_PPM_PI)
         * MT_CO2_PER_ATMOSPHERIC_PPM
@@ -95,9 +95,9 @@ def co2_vej_mt_per_year() -> float:
 
 
 def co2_start_demand_percent_from_gcb_emissions() -> float:
-    """100 × GCB-Gesamtemissionen / Modell-VEJ (gleiche Einheit Mt/a)."""
+    """100 × GCB-Gesamtemissionen / Modell-BudgetJ (gleiche Einheit Mt/a)."""
     emissions_mt = ANTHROPOGENIC_CO2_TOTAL_GT_PER_YEAR_2024 * 1000.0
-    return 100.0 * emissions_mt / co2_vej_mt_per_year()
+    return 100.0 * emissions_mt / co2_budget_J_mt_per_year()
 
 
 def ozone_start_demand_percent_from_du_corridor() -> float:
@@ -132,7 +132,7 @@ def freshwater_blue_start_demand_percent() -> float:
 
 def land_system_start_demand_percent() -> float:
     """
-    Waldfläche: Verlustanteil relativ zum im Modell erlaubten Maximalverlust (AG=0,25).
+    Waldfläche: Verlustanteil relativ zum im Modell erlaubten Maximalverlust (grenze=0,25).
     Ist-Verlust = 1 − 0,60; „sicherer“ Maximalverlust = 1 − 0,75 = 0,25 (Richardson T1).
     """
     converted_current = 1.0 - (FOREST_REMAINING_PCT_GLOBAL_CURRENT / 100.0)
@@ -152,9 +152,9 @@ class BoundaryConstants:
     label_de: str
     unit_note: str
     consumption_unit_monthly: str
-    AG: float # Grenzwert
-    VK: float # Vorindustrieller Wert
-    RZ: float # RZ = Regenerationszeit
+    grenze: float # Grenzwert
+    vk: float # Vorindustrieller Wert
+    regeneration: float # RZ = Regenerationszeit
     literature_note: str
     is_example: bool
     start_demand_percent: float
@@ -167,12 +167,12 @@ CLIMATE_CO2 = BoundaryConstants(
     label_de="Klima (atmosphärisches CO₂)",
     unit_note=(
         "AG/VK: Mt CO₂ (Masse in der Luft; Grenze 350 ppm, PI 280 ppm, Richardson et al. 2023 T1; "
-        "Steffen et al. 2015). VEJ: Mt CO₂ a⁻¹ via (AG−VK)/RZ."
+        "Steffen et al. 2015). BudgetJ: Mt CO₂ a⁻¹ via (AG−VK)/RZ."
     ),
     consumption_unit_monthly="Mt CO₂ Monat⁻¹",
-    AG=CO2_PPM_BOUNDARY * MT_CO2_PER_ATMOSPHERIC_PPM,
-    VK=CO2_PPM_PI * MT_CO2_PER_ATMOSPHERIC_PPM,
-    RZ=CO2_REGENERATION_YEARS,
+    grenze=CO2_PPM_BOUNDARY * MT_CO2_PER_ATMOSPHERIC_PPM,
+    vk=CO2_PPM_PI * MT_CO2_PER_ATMOSPHERIC_PPM,
+    regeneration=CO2_REGENERATION_YEARS,
     literature_note=(
         "350/280 ppm (Grenze/PI), atmosphärisch 417 ppm (2022, Richardson et al. 2023 T1); "
         "Masse: ppm × MT_CO2_PER_ATMOSPHERIC_PPM (IPCC ~2,12 Pg C/ppm)."
@@ -192,9 +192,9 @@ STRATOSPHERIC_OZONE = BoundaryConstants(
     label_de="Stratosphärisches Ozon",
     unit_note="Globale mittlere Ozonsäule (DU); Richardson et al. (2023) T1 / WMO-GAW (Ref. 96).",
     consumption_unit_monthly="DU Monat⁻¹",
-    AG=OZONE_DU_PI - OZONE_DU_BOUNDARY,
-    VK=0.0,
-    RZ=1.0,
+    grenze=OZONE_DU_PI - OZONE_DU_BOUNDARY,
+    vk=0.0,
+    regeneration=1.0,
     literature_note=(
         "290 DU PI, 276 DU Grenze (<5 % Reduktion), 284,6 DU aktuell: Richardson et al. (2023) T1."
     ),
@@ -218,9 +218,9 @@ ATMOSPHERIC_AEROSOLS = BoundaryConstants(
         "Richardson et al. (2023) T1, Ref. 55, 57, 68."
     ),
     consumption_unit_monthly="ΔAOD_interhem. Monat⁻¹",
-    AG=AOD_INTERHEM_DIFF_BOUNDARY,
-    VK=AOD_INTERHEM_DIFF_PI,
-    RZ=1.0,
+    grenze=AOD_INTERHEM_DIFF_BOUNDARY,
+    vk=AOD_INTERHEM_DIFF_PI,
+    regeneration=1.0,
     literature_note=(
         "PB 0,1, PI 0,03, aktuell 0,076: Richardson et al. (2023) T1; Satelliten/Multi-Source-AOD."
     ),
@@ -240,9 +240,9 @@ OCEAN_ACIDIFICATION = BoundaryConstants(
     label_de="Ozeanversauerung (Ω Aragonit)",
     unit_note="Globales mittleres Ω_arag Oberfläche; Richardson et al. (2023) T1.",
     consumption_unit_monthly="ΔΩ Monat⁻¹",
-    AG=OMEGA_ARAG_PI - OMEGA_ARAG_BOUNDARY,
-    VK=0.0,
-    RZ=1.0,
+    grenze=OMEGA_ARAG_PI - OMEGA_ARAG_BOUNDARY,
+    vk=0.0,
+    regeneration=1.0,
     literature_note=(
         "PI 3,44, Grenze 2,75 (≥80 % von PI), aktuell 2,8: Richardson et al. (2023) T1, Ref. 71."
     ),
@@ -262,9 +262,9 @@ NITROGEN = BoundaryConstants(
     label_de="Stickstoff (anthropogene Fixierung Landwirtschaft)",
     unit_note="Tg N a⁻¹; Grenze 62, Ist 190: Richardson et al. (2023) T1, Ref. 84 (FAO).",
     consumption_unit_monthly="kt N Monat⁻¹",
-    AG=N_AGRIC_FIXATION_TG_PER_YR_BOUNDARY * KT_N_PER_TG,
-    VK=0.0,
-    RZ=1.0,
+    grenze=N_AGRIC_FIXATION_TG_PER_YR_BOUNDARY * KT_N_PER_TG,
+    vk=0.0,
+    regeneration=1.0,
     literature_note=(
         "62 Tg N a⁻¹ Grenze, 190 Tg N a⁻¹ aktuell (anthropogen fixiert, landwirtschaftliches System): "
         "Richardson et al. (2023) T1; Zitat FAO im Original."
@@ -288,9 +288,9 @@ FRESHWATER = BoundaryConstants(
         "Methodik Porkka et al. (2024) *Nature Water* (Ref. 46)."
     ),
     consumption_unit_monthly="% Landfläche (blue water) Monat⁻¹",
-    AG=BLUE_WATER_STRESS_PCT_LAND_BOUNDARY,
-    VK=0.0,
-    RZ=1.0,
+    grenze=BLUE_WATER_STRESS_PCT_LAND_BOUNDARY,
+    vk=0.0,
+    regeneration=1.0,
     literature_note=(
         "Grenze 10,2 % Landfläche, Ist 18,2 %: Richardson et al. (2023) T1; Basis Porkka et al."
     ),
@@ -311,9 +311,9 @@ LAND_SYSTEM = BoundaryConstants(
     label_de="Landnutzung (Waldfläche, global)",
     unit_note="Verbleibende Waldfläche % der potenziellen Waldbedeckung; Richardson et al. (2023) T1.",
     consumption_unit_monthly="Umwandlungsanteil Monat⁻¹",
-    AG=1.0 - (FOREST_REMAINING_PCT_GLOBAL_BOUNDARY / 100.0),
-    VK=0.0,
-    RZ=1.0,
+    grenze=1.0 - (FOREST_REMAINING_PCT_GLOBAL_BOUNDARY / 100.0),
+    vk=0.0,
+    regeneration=1.0,
     literature_note=(
         "Global 60 % verbleibend, Grenze 75 % (gewichteter Durchschnitt der Biome): "
         "Richardson et al. (2023) T1; Satelliten-Landbedeckung (Ref. 72, 97)."
@@ -338,9 +338,9 @@ HANPP = BoundaryConstants(
         "Proxy in Mt C a⁻¹ nach Projektvorgabe (Literaturbeleg für die Zahlen ergänzen)."
     ),
     consumption_unit_monthly="Mt C Monat⁻¹",
-    AG=HANPP_CARBON_BOUNDARY_MT_C_PER_YR,
-    VK=0.0,
-    RZ=1.0,
+    grenze=HANPP_CARBON_BOUNDARY_MT_C_PER_YR,
+    vk=0.0,
+    regeneration=1.0,
     literature_note=(
         "Planetare Grenze (Limit) **5 600 Mt C a⁻¹**, Status quo **15 800 Mt C a⁻¹** "
         "(Projektkonstanten ``HANPP_CARBON_*``; Quelle im Modulkommentar nachreichen)."
@@ -350,7 +350,7 @@ HANPP = BoundaryConstants(
     annual_growth_percent=0.0,
     default_params_note=(
         "start_demand_percent: 100×(15 800 Mt C a⁻¹)/(5 600 Mt C a⁻¹). "
-        "VEJ-Ziel = Grenzfluss 5 600 Mt C a⁻¹ (``AG``, ``RZ``=1), Monatswert ÷12. "
+        "BudgetJ = Grenzfluss 5 600 Mt C a⁻¹ (``AG``, ``RZ``=1), Monatswert ÷12. "
         "annual_growth_percent: **0** bis ein belastbarer Jahrestrend für diesen "
         "Mt-C-Proxy vorliegt (früher +0,69 %/a nur für den entfernten %-HANPP-Ansatz)."
     ),
@@ -364,9 +364,9 @@ NOVEL_ENTITIES = BoundaryConstants(
         "Proxy: global plastics production trend."
     ),
     consumption_unit_monthly="Index Monat⁻¹",
-    AG=1.0,
-    VK=0.0,
-    RZ=1.0,
+    grenze=1.0,
+    vk=0.0,
+    regeneration=1.0,
     literature_note=(
         "Persson et al. (2022) Environ. Sci. Technol. (überschritten); "
         "Richardson T1: qualitativ ohne Zahl — Modell-Index 1,0."
