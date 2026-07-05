@@ -70,13 +70,13 @@ def growth_one_line(growth_by_boundary: list[tuple[str, float]]) -> str:
 
 
 def start_demand_one_line(start_demand_by_boundary: list[tuple[str, float]]) -> str:
-    """``v`` ist Anteil 0…1; Anzeige als Prozent des VEJ-Ziels."""
+    """``v`` ist Anteil 0…1; Anzeige als Prozent des BudgetJs."""
     parts = [f"{k} {fmt_num(v * 100.0, prec=2)} %" for k, v in start_demand_by_boundary]
     return " · ".join(parts)
 
 
 def run_params_row(
-    ecumenge_ziel_J: float,
+    ecumenge_ziel: float,
     periods_years: int,
     budget_method: str,
     demand_noise_std: float,
@@ -84,7 +84,7 @@ def run_params_row(
     seed: int | None,
 ) -> list[str]:
     return [
-        fmt_num(ecumenge_ziel_J),
+        fmt_num(ecumenge_ziel),
         str(periods_years),
         budget_method,
         fmt_num(demand_noise_std),
@@ -101,9 +101,9 @@ def yearly_ecu_table_rows(rows: list[YearlyEcuSummary]) -> list[list[str]] | Non
         rrows.append(
             [
                 str(y.year_index),
-                fmt_num(y.bundle_ecu),
+                fmt_num(y.ecumenge_kontenrahmen),
                 fmt_num(y.slack_vej),
-                fmt_pct(y.mean_utilization),
+                fmt_pct(y.gesamtauslastung),
             ]
         )
     return rrows
@@ -115,12 +115,12 @@ def month_table_rows(months: list[MonthRow]) -> list[list[str]]:
         rrows.append(
             [
                 str(m.period),
-                fmt_num(m.price),
-                fmt_num(m.vej_ist),
+                fmt_num(m.ecu_preis),
+                fmt_num(m.nutzung_T),
                 fmt_num(m.pc),
                 fmt_num(m.demand),
-                fmt_num(m.vet_ziel),
-                fmt_pct(m.pct_vet_ziel),
+                fmt_num(m.budget_T),
+                fmt_pct(m.pct_budget_T),
             ]
         )
     return rrows
@@ -130,11 +130,11 @@ def year_summary_values(ys: BoundaryYearSummary) -> list[str]:
     return [
         str(ys.year_index),
         fmt_num(ys.mean_price),
-        fmt_num(ys.sum_vej_ist),
+        fmt_num(ys.sum_nutzung_T),
         fmt_num(ys.sum_demand_ref),
         fmt_num(ys.sum_pc),
-        fmt_num(ys.vej_ziel),
-        fmt_pct(ys.pct_vej_ist_jahr_vs_vej_ziel),
+        fmt_num(ys.budget_J),
+        fmt_pct(ys.pct_nutzung_T_jahr_vs_budget_J),
     ]
 
 
@@ -142,11 +142,11 @@ def boundary_summary_row(section: BoundarySection) -> list[str]:
     t = section.total
     return [
         f"{section.label} ({section.key})",
-        fmt_num(t.sum_vej_ist),
+        fmt_num(t.sum_nutzung_T),
         fmt_num(t.sum_demand_ref),
         fmt_num(t.sum_pc),
-        fmt_num(t.vej_ziel),
-        fmt_pct(t.pct_vej_ist_jahr_vs_vej_ziel),
+        fmt_num(t.budget_J),
+        fmt_pct(t.pct_nutzung_T_jahr_vs_budget_J),
     ]
 
 

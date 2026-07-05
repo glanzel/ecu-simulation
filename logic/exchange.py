@@ -1,4 +1,4 @@
-"""Tauschkurs: ECU pro physische Einheit und umgekehrt (aus Schattenpreisen)."""
+"""Tauschkurs: ECU pro physische Einheit und umgekehrt (aus ECU-Preisen)."""
 
 from __future__ import annotations
 

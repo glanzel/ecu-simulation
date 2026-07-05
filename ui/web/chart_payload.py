@@ -25,13 +25,14 @@ def chart_payload_dict(results: list[PeriodResult], *, i18n: SimulationI18n) -> 
             "labels": [],
             "boundaries": [],
             "meanUtilization": [],
-            "bundle_ecu_T": [],
+            "ecumenge_kontenrahmen_T": [],
             "ecu_ist_T": [],
-            "ecumenge_ziel_J_T": [],
-            "ecumenge_ziel_sim_J_T": [],
+            "ecumenge_ziel_T": [],
+            "ecumenge_ziel_sim_T": [],
             "ecumenge_T": [],
             "pctVetZielSeries": [],
             "priceSeries": [],
+            "elastikfaktorSeries": [],
             "chartLabels": i18n.chart_labels(),
         }
     inv_y = 1.0 / float(MONTHS_PER_YEAR)
@@ -40,37 +41,42 @@ def chart_payload_dict(results: list[PeriodResult], *, i18n: SimulationI18n) -> 
         {"key": b.key, "label": i18n.boundary_label(b.key, fallback=b.label_de)}
         for b in ALL_BOUNDARIES
     ]
-    mean_u = [_num_json(r.mean_utilization) for r in results]
-    bundle_m = [_num_json(r.bundle_ecu * inv_y) for r in results]
+    gesamtauslastung = [_num_json(r.gesamtauslastung) for r in results]
+    bundle_m = [_num_json(r.ecumenge_kontenrahmen * inv_y) for r in results]
     exp = [_num_json(r.ecu_ist_T) for r in results]
-    ziel_cfg_m = [_num_json(r.ecumenge_ziel_J * inv_y) for r in results]
-    ziel_sim_m = [_num_json(r.consumption_timeline.ecumenge_ziel_sim_J * inv_y) for r in results]
+    ziel_cfg_m = [_num_json(r.ecumenge_ziel * inv_y) for r in results]
+    ziel_sim_m = [_num_json(r.consumption_timeline.ecumenge_ziel_sim * inv_y) for r in results]
     cap_m = [_num_json(r.ecumenge_T) for r in results]
-    pct_vet_ziel_series: list[list[float | None]] = []
+    pct_budget_T_series: list[list[float | None]] = []
     price_series: list[list[float | None]] = []
+    elastikfaktor_series: list[list[float | None]] = []
     for b in ALL_BOUNDARIES:
         k = b.key
         pct_row: list[float | None] = []
         price_row: list[float | None] = []
+        elastik_row: list[float | None] = []
         for r in results:
-            v = r.vet_ziel[k]
-            c = r.vej_ist[k]
+            v = r.budget_T[k]
+            c = r.nutzung_T[k]
             pct = (100.0 * c / v) if v > 0 else float("nan")
             pct_row.append(_num_json(pct))
             price_row.append(_num_json(r.prices[k]))
-        pct_vet_ziel_series.append(pct_row)
+            elastik_row.append(_num_json(r.elastikfaktor[k]))
+        pct_budget_T_series.append(pct_row)
         price_series.append(price_row)
+        elastikfaktor_series.append(elastik_row)
     return {
         "labels": labels,
         "boundaries": boundaries,
-        "meanUtilization": mean_u,
-        "bundle_ecu_T": bundle_m,
+        "meanUtilization": gesamtauslastung,
+        "ecumenge_kontenrahmen_T": bundle_m,
         "ecu_ist_T": exp,
-        "ecumenge_ziel_J_T": ziel_cfg_m,
-        "ecumenge_ziel_sim_J_T": ziel_sim_m,
+        "ecumenge_ziel_T": ziel_cfg_m,
+        "ecumenge_ziel_sim_T": ziel_sim_m,
         "ecumenge_T": cap_m,
-        "pctVetZielSeries": pct_vet_ziel_series,
+        "pctVetZielSeries": pct_budget_T_series,
         "priceSeries": price_series,
+        "elastikfaktorSeries": elastikfaktor_series,
         "chartLabels": i18n.chart_labels(),
     }
 

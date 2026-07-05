@@ -1,13 +1,13 @@
 """
-Schattenpreise (ECU pro Einheit Kontrollvariable) mit Kopplung an die ECU-Jahresbilanz:
+ECU-Preise (ECU pro Einheit Kontrollvariable) mit Kopplung an die ECU-Jahresbilanz:
 
-  Σ_i p_i · vej_ziel_i = ecumenge_ziel_J  (konfiguriertes Jahresbudget)
+  Σ_i p_i · budget_J_i = ecumenge_ziel  (konfiguriertes Jahresbudget)
 
-Rohpreise aus der Timeline (``vej_ist`` oberhalb ``vet_ziel`` → Bump bzw. nach Warmup OLS-η). Danach
-Normierung in ``advance_shadow_prices`` (Warmup: siehe Docstring dort).
+Rohpreise aus der Timeline (``nutzung_T`` oberhalb ``budget_T`` → Bump bzw. nach Warmup OLS-η). Danach
+Normierung in ``advance_ecu_preise`` (Warmup: siehe Docstring dort).
 
-Normierung in ``advance_shadow_prices``: **Warmup** (erste N Beobachtungen, ``max_pct > 0``): nur
-pro-Grenzen-Klemme, kein ``Σ p·VEJ-Ziel``-Match. **Weicher** ECU-Pfad: Ratchet + ``scale_percentual_to_ecu``
+Normierung in ``advance_ecu_preise``: **Warmup** (erste N Beobachtungen, ``max_pct > 0``): nur
+pro-Grenzen-Klemme, kein ``Σ ecu_preis·BudgetJ-Ziel``-Match. **Weicher** ECU-Pfad: Ratchet + ``scale_percentual_to_ecu``
 ohne Grenz-Multiplikatoren (± ``p`` % Bündel-Schritt). **Harter** Pfad: ``scale_percentual_to_ecu``
 mit Überschuss-Relativierung; bei ``max_pct = 0`` direkt ``scale_budget_to_ecu``.
 """
@@ -17,74 +17,76 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from logic.elasticity_factor import ElasticityFactorTracker
 from logic.exchange import ExchangeRates, rates_from_prices
-from logic.initial_prices import initial_shadow_prices_from_vej_ist_J, initial_weights_uniform
+from logic.initial_ecu_preise import initial_ecu_preise_from_nutzung_ref_J, initial_weights_uniform
 from logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR, ConsumptionTimeline
 from logic.price_config import PriceConfig
+from logic.quota import QuotaCalculator
 
 if TYPE_CHECKING:
     from simulation.config import SimulationConfig
 
-# --- Bundles und Skalierung (Σ p·q; Startpreise: Jahresformel in ``initial_prices``) ------------
+# --- Bundles und Skalierung (Σ p·q; Startpreise: Jahresformel in ``initial_ecu_preise``) ------------
 
 
 
-def bundle_p_times_vet_ziel(prices: dict[str, float], vet_ziel: dict[str, float]) -> float:
-    """Monatlicher ECU-Wert bei voller Ausnutzung von ``vet_ziel``: ``Σ_i p_i·vet_ziel_i``."""
-    return sum(prices[k] * vet_ziel[k] for k in BOUNDARY_KEYS)
+def ecumenge_kontenrahmen_p_times_budget_T(prices: dict[str, float], budget_T: dict[str, float]) -> float:
+    """Monatlicher ECU-Wert bei voller Ausnutzung von ``budget_T``: ``Σ_i p_i·budget_T_i``."""
+    return sum(prices[k] * budget_T[k] for k in BOUNDARY_KEYS)
 
 
-def bundle_value(prices: dict[str, float], quantities: dict[str, float]) -> float:
+def ecumenge_kontenrahmen_wert(prices: dict[str, float], quantities: dict[str, float]) -> float:
     """
-    ``Σ_i p_i · q_i`` in ECU: ``q`` z. B. ``vej_ziel`` (Jahr) oder ``vej_ist`` (Monat), konsistent zu ``p``.
+    ``Σ_i p_i · q_i`` in ECU: ``q`` z. B. ``budget_J`` (Jahr) oder ``nutzung_T`` (Monat), konsistent zu ``p``.
     """
     return sum(prices[k] * quantities[k] for k in BOUNDARY_KEYS)
 
 
-def scale_budget_to_ecu(prices: dict[str, float], vej_ziel: dict[str, float], ecumenge_ziel_J: float) -> dict[str, float]:
+def scale_budget_to_ecu(prices: dict[str, float], budget_J: dict[str, float], ecumenge_ziel: float) -> dict[str, float]:
     """
-    Normierung auf ``Σ p·VEJ-Ziel = ecumenge_ziel_J`` in einem exakten Schritt.
+    Normierung auf ``Σ ecu_preis·BudgetJ-Ziel = ecumenge_ziel`` in einem exakten Schritt.
 
-    Kein ``_clamp_scale_toward_budget`` — nur gemeinsamer Faktor ``ecumenge_ziel_J / Σ p·VEJ-Ziel``.
+    Kein ``_clamp_scale_toward_budget`` — nur gemeinsamer Faktor ``ecumenge_ziel / Σ ecu_preis·BudgetJ-Ziel``.
     """
-    bundle_total = bundle_value(prices, vej_ziel)
-    if bundle_total <= 0:
-        raise ValueError("Summe p·VEJ-Ziel muss positiv sein.")
-    scale_factor = ecumenge_ziel_J / bundle_total
+    kontenrahmen_total = ecumenge_kontenrahmen_wert(prices, budget_J)
+    if kontenrahmen_total <= 0:
+        raise ValueError("Summe p·BudgetJ muss positiv sein.")
+    scale_factor = ecumenge_ziel / kontenrahmen_total
     return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
 
-def ratchet_ecumenge_ziel_sim_J(
-    ecumenge_ziel_sim_J: float, ecumenge_ziel_J_konfig: float, max_scale_pct_per_period: float
+def ratchet_ecumenge_ziel_sim(
+    ecumenge_ziel_sim: float, ecumenge_ziel_konfig: float, max_scale_pct_per_period: float
 ) -> float:
-    """Weicher Pfad: simuliertes Jahresziel sinkt höchstens um ``max_scale_pct_per_period`` %, nicht unter ``ecumenge_ziel_J_konfig``."""
-    return max(ecumenge_ziel_J_konfig, ecumenge_ziel_sim_J * (1.0 - max_scale_pct_per_period / 100.0))
+    """Weicher Pfad: simuliertes Jahresziel sinkt höchstens um ``max_scale_pct_per_period`` %, nicht unter ``ecumenge_ziel_konfig``."""
+    return max(ecumenge_ziel_konfig, ecumenge_ziel_sim * (1.0 - max_scale_pct_per_period / 100.0))
 
 
-def mean_utilization_soft_path_threshold(max_scale_pct_per_period: float) -> float:
-    """Schwelle ``mean_u > 1 + p/100`` für den weichen Pfad (``p`` = ``max_scale_pct_per_period``)."""
+def gesamtauslastung_soft_path_threshold(max_scale_pct_per_period: float) -> float:
+    """Schwelle ``gesamtauslastung > 1 + p/100`` für den weichen Pfad (``p`` = ``max_scale_pct_per_period``)."""
     if max_scale_pct_per_period <= 0.0:
         return float("inf")
     return 1.0 + max_scale_pct_per_period / 100.0
 
 
-def _per_boundary_raw_multipliers_from_utilization(
-    mean_utilization: float,
-    utilization_by_boundary: dict[str, float],
+def _per_boundary_raw_multipliers_from_auslastung(
+    gesamtauslastung: float,
+    auslastung: dict[str, float],
     max_scale_pct_per_period: float,
 ) -> dict[str, float]:
     """
     Relativierung Überschuss Grenze vs. Gesamt: Faktor nahe 1, Abweichung skaliert mit ``max/100``.
     Bei keinem gemeinsamen Überschuss (Ø ≤ 1): überall 1. Verwendet im **harten** Pfad vor ``scale_percentual_to_ecu``.
     """
-    e_ges = max(0.0, mean_utilization - 1.0)
+    e_ges = max(0.0, gesamtauslastung - 1.0)
     eps = 1e-9
     step = max_scale_pct_per_period / 100.0
     out: dict[str, float] = {}
     if e_ges <= eps:
         return {k: 1.0 for k in BOUNDARY_KEYS}
     for k in BOUNDARY_KEYS:
-        e_k = max(0.0, utilization_by_boundary[k] - 1.0)
+        e_k = max(0.0, auslastung[k] - 1.0)
         r_k = e_k / max(eps, e_ges)
         delta = step * max(-0.5, min(2.0, r_k - 1.0))
         out[k] = 1.0 + delta
@@ -92,129 +94,202 @@ def _per_boundary_raw_multipliers_from_utilization(
 
 
 def scale_percentual_to_ecu(
-    prices_new: dict[str, float],
-    vej_ziel: dict[str, float],
-    ecumenge_ziel_J: float,
+    ecu_preise_new: dict[str, float],
+    budget_J: dict[str, float],
+    ecumenge_ziel: float,
     max_scale_pct_per_period: float,
-    bundle_previous: float,
+    kontenrahmen_previous: float,
     *,
-    mean_utilization: float | None = None,
-    utilization_by_boundary: dict[str, float] | None = None,
+    gesamtauslastung: float | None = None,
+    auslastung: dict[str, float] | None = None,
 ) -> dict[str, float]:
     """
-    Rohpreise ``prices_new`` (geratene neue Verhältnisse aus der Timeline) einheitlich skalieren:
+    Rohpreise ``ecu_preise_new`` (geratene neue Verhältnisse aus der Timeline) einheitlich skalieren:
     ``p' = s · p_new`` — die **relativen** Verhältnisse der neuen Preise bleiben erhalten.
 
-    ``bundle_previous`` ist ``Σ p_alt · vej_ziel`` zu den **zuletzt gültigen** Schattenpreisen (letzte Periode);
-    das neue Bündel ist ``B_neu(s) = s · B_roh`` mit ``B_roh = Σ p_new · vej_ziel``.
+    ``kontenrahmen_previous`` ist ``Σ p_alt · budget_J`` zu den **zuletzt gültigen** ECU-Preisen (letzte Periode);
+    das neue Bündel ist ``B_neu(s) = s · B_roh`` mit ``B_roh = Σ p_new · budget_J``.
 
-    Zielrichtung ECU: ``s_ecu = ecumenge_ziel_J / B_roh``. Zusätzlich soll sich das Bündel gegenüber
+    Zielrichtung ECU: ``s_ecu = ecumenge_ziel / B_roh``. Zusätzlich soll sich das Bündel gegenüber
     dem **vorigen Zeitschritt** höchstens um ``p`` Prozent ändern (``p`` = ``max_scale_pct_per_period``):
-    ``B_neu ∈ [bundle_previous·(1−p/100), bundle_previous·(1+p/100)]``, also
-    ``s ∈ [bundle_previous·(1−p/100)/B_roh, bundle_previous·(1+p/100)/B_roh]``.
+    ``B_neu ∈ [kontenrahmen_previous·(1−p/100), kontenrahmen_previous·(1+p/100)]``, also
+    ``s ∈ [kontenrahmen_previous·(1−p/100)/B_roh, kontenrahmen_previous·(1+p/100)/B_roh]``.
     Gewählt wird ``s = clamp(s_ecu, s_min, s_max)`` (ein Schritt, keine Schleife).
 
-    Mit ``mean_utilization`` und ``utilization_by_boundary`` werden die Rohpreise zuvor
+    Mit ``gesamtauslastung`` und ``auslastung`` werden die Rohpreise zuvor
     grenzenweise gemäß Überschuss-Relativierung modifiziert (nur **harter** Pfad).
     """
-    adjusted = prices_new
-    if mean_utilization is not None and utilization_by_boundary is not None:
-        mult = _per_boundary_raw_multipliers_from_utilization(
-            mean_utilization, utilization_by_boundary, max_scale_pct_per_period
+    adjusted = ecu_preise_new
+    if gesamtauslastung is not None and auslastung is not None:
+        mult = _per_boundary_raw_multipliers_from_auslastung(
+            gesamtauslastung, auslastung, max_scale_pct_per_period
         )
-        adjusted = {k: prices_new[k] * mult[k] for k in BOUNDARY_KEYS}
-    bundle_raw = bundle_value(adjusted, vej_ziel)
-    if bundle_raw <= 0:
-        raise ValueError("Summe p·VEJ-Ziel der Rohpreise muss positiv sein.")
-    if bundle_previous <= 0:
-        raise ValueError("Referenz-Bündel Σ p_alt·VEJ-Ziel muss positiv sein.")
+        adjusted = {k: ecu_preise_new[k] * mult[k] for k in BOUNDARY_KEYS}
+    kontenrahmen_raw = ecumenge_kontenrahmen_wert(adjusted, budget_J)
+    if kontenrahmen_raw <= 0:
+        raise ValueError("Summe p·BudgetJ der Rohpreise muss positiv sein.")
+    if kontenrahmen_previous <= 0:
+        raise ValueError("Referenz-Bündel Σ p_alt·BudgetJ muss positiv sein.")
     half_band = max_scale_pct_per_period / 100.0
-    s_ecu = ecumenge_ziel_J / bundle_raw
-    s_min = bundle_previous * (1.0 - half_band) / bundle_raw
-    s_max = bundle_previous * (1.0 + half_band) / bundle_raw
+    s_ecu = ecumenge_ziel / kontenrahmen_raw
+    s_min = kontenrahmen_previous * (1.0 - half_band) / kontenrahmen_raw
+    s_max = kontenrahmen_previous * (1.0 + half_band) / kontenrahmen_raw
     scale_factor = min(max(s_ecu, s_min), s_max)
     return {k: adjusted[k] * scale_factor for k in BOUNDARY_KEYS}
+
+
+def scale_to_quota_budget(
+    ecu_preise: dict[str, float], quote_T: dict[str, float], ecumenge_T: float
+) -> dict[str, float]:
+    """Normierung: ``Σ ecu_preis_k · QuoteT_k = ecumenge_T``."""
+    kontenrahmen = ecumenge_kontenrahmen_wert(ecu_preise, quote_T)
+    if kontenrahmen <= 0.0:
+        raise ValueError("Summe ecu_preis·QuoteT muss positiv sein.")
+    scale_factor = ecumenge_T / kontenrahmen
+    return {k: ecu_preise[k] * scale_factor for k in BOUNDARY_KEYS}
+
+
+def _ecu_preise_from_quota(ecumenge_T: float, quote_T: dict[str, float]) -> dict[str, float]:
+    """Text: ``P_k = (EcumengeT / N) / QuoteT_k``."""
+    n = float(len(BOUNDARY_KEYS))
+    eps = 1e-15
+    return {k: (ecumenge_T / n) / max(eps, quote_T[k]) for k in BOUNDARY_KEYS}
+
+
+def _ratchet_ecumenge_T_text(ecumenge_T: float, ecumenge_ziel_T: float, deltagesamt_frac: float) -> float:
+    """Text: EcumengeT sinkt pro Schritt um Deltagesamt, nicht unter EcumengeZiel/12."""
+    return max(ecumenge_ziel_T, ecumenge_T * (1.0 - deltagesamt_frac))
+
+
+def _advance_ecu_preise_text(
+    timeline: ConsumptionTimeline, budget_J: dict[str, float], nutzung_anteil_budget: dict[str, float]
+) -> ConsumptionTimeline:
+    """Text-Kernpfad: Quote_t, P=EcumengeT/N/Quote_t, Elastikfaktor ab Schritt 5, Normierung auf Quote_t."""
+    if len(timeline) == 0:
+        timeline.ecumenge_T_override = None
+        timeline.last_elastikfaktor = {k: 1.0 for k in BOUNDARY_KEYS}
+        ecumenge_budget_J = timeline.ecumenge_ziel_sim if timeline.ecumenge_ziel_sim > 0.0 else timeline.ecumenge_ziel
+        timeline.ecu_preise_for_next_consumption = initial_ecu_preise_for_ecu(budget_J, nutzung_anteil_budget, ecumenge_budget_J)
+        return timeline
+
+    price_cfg = timeline.price_config
+    deltagesamt_frac = price_cfg.deltagesamt_pct / 100.0
+    last_interval = timeline.last
+    first_interval = timeline[0]
+    budget_T_last = {k: last_interval.budget_T_for(k) for k in BOUNDARY_KEYS}
+    nutzung_T_last = {k: last_interval.nutzung_T_for(k) for k in BOUNDARY_KEYS}
+    nutzung_t0 = {k: first_interval.nutzung_T_for(k) for k in BOUNDARY_KEYS}
+    quota = QuotaCalculator.from_nutzung_budget(
+        nutzung_T_last, budget_T_last, nutzung_t0, timeline.quote_absenkung_f, deltagesamt_frac
+    )
+    timeline.last_quota = quota
+    timeline.quote_absenkung_f = quota.absenkung_f
+
+    ecumenge_ziel_T = timeline.ecumenge_ziel_konfig / float(MONTHS_PER_YEAR)
+    ecumenge_T_sim = timeline.ecumenge_ziel_sim / float(MONTHS_PER_YEAR)
+    if quota.absenkung:
+        ecumenge_T = _ratchet_ecumenge_T_text(ecumenge_T_sim, ecumenge_ziel_T, deltagesamt_frac)
+        timeline.ecumenge_ziel_sim = ecumenge_T * float(MONTHS_PER_YEAR)
+    else:
+        ecumenge_T = ecumenge_T_sim
+    timeline.ecumenge_T_override = ecumenge_T
+
+    raw = _ecu_preise_from_quota(ecumenge_T, quota.quote_T)
+    if len(timeline) >= int(price_cfg.preisschritt_elastizitaet_ab):
+        if timeline.elasticity_factor_tracker is None:
+            timeline.elasticity_factor_tracker = ElasticityFactorTracker()
+            timeline.elasticity_factor_tracker.initialize_from_timeline(timeline, deltagesamt_frac)
+        tracker = timeline.elasticity_factor_tracker
+        applied = {k: tracker.factor_for(k) for k in BOUNDARY_KEYS}
+        for k in BOUNDARY_KEYS:
+            raw[k] = raw[k] * applied[k]
+            tracker.update_boundary(k, nutzung_T_last[k], quota.quote_T[k], price_cfg.elasticity_factor_alpha)
+        timeline.last_elastikfaktor = applied
+    else:
+        timeline.last_elastikfaktor = {k: 1.0 for k in BOUNDARY_KEYS}
+    timeline.ecu_preise_for_next_consumption = scale_to_quota_budget(raw, quota.quote_T, ecumenge_T)
+    return timeline
 
 
 # --- Start- und Referenzpreise -----------------------------------------------------------------
 
 
-def initial_shadow_prices_for_ecu(
-    vej_ziel: dict[str, float], fraction_of_vej_ziel: dict[str, float], ecumenge_budget_J: float
+def initial_ecu_preise_for_ecu(
+    budget_J: dict[str, float], nutzung_anteil_budget: dict[str, float], ecumenge_budget_J: float
 ) -> dict[str, float]:
     """
-    Start-Schattenpreise: ``p_i = w_i · ecumenge_budget_J / vej_ist_i`` mit jährlichem Referenz-``vej_ist_i`` =
-    ``f_i · vej_ziel_i`` (Startnachfrage am Jahresfluss). Normierte ``w_i = 1/n``; keine weitere Skalierung;
-    ``Σ_i p_i · vej_ist_i = ecumenge_budget_J``.
+    Start-ECU-Preise: ``p_i = w_i · ecumenge_budget_J / nutzung_T_i`` mit jährlichem Referenz-``nutzung_T_i`` =
+    ``f_i · budget_J_i`` (Startnachfrage am Jahresfluss). Normierte ``w_i = 1/n``; keine weitere Skalierung;
+    ``Σ_i p_i · nutzung_T_i = ecumenge_budget_J``.
     """
-    vej_ist_ref_J = {k: float(fraction_of_vej_ziel[k]) * float(vej_ziel[k]) for k in BOUNDARY_KEYS}
-    return initial_shadow_prices_from_vej_ist_J(
-        vej_ist_ref_J, ecumenge_budget_J, initial_weights_uniform(len(BOUNDARY_KEYS))
+    nutzung_ref_J = {k: float(nutzung_anteil_budget[k]) * float(budget_J[k]) for k in BOUNDARY_KEYS}
+    return initial_ecu_preise_from_nutzung_ref_J(
+        nutzung_ref_J, ecumenge_budget_J, initial_weights_uniform(len(BOUNDARY_KEYS))
     )
 
 
-def reference_shadow_prices_for_demand(
-    cfg: SimulationConfig, vej_ziel: dict[str, float], ecumenge_budget_J: float
+def reference_ecu_preise_for_demand(
+    cfg: SimulationConfig, budget_J: dict[str, float], ecumenge_budget_J: float
 ) -> dict[str, float]:
     """
-    Referenzpreise für die Nachfragefunktion: Start-Schattenpreise, dann ``resolved_p_ref``.
+    Referenzpreise für die Nachfragefunktion: Start-ECU-Preise, dann ``resolved_p_ref``.
     """
     frac = cfg.resolved_start_demand()
-    initial = initial_shadow_prices_for_ecu(vej_ziel, frac, ecumenge_budget_J)
+    initial = initial_ecu_preise_for_ecu(budget_J, frac, ecumenge_budget_J)
     return cfg.resolved_p_ref(initial)
 
 
 # --- Timeline: Rohpreise, Auslastung, Elastizität -----------------------------------------------
 
 
-def _clamp_shadow_prices_vs_last_by_utilization_share(
+def _clamp_ecu_preise_vs_last_by_auslastung_share(
     prices: dict[str, float],
-    prices_last: dict[str, float],
-    u_by: dict[str, float],
-    mean_u: float,
+    ecu_preise_last: dict[str, float],
+    auslastung: dict[str, float],
+    gesamtauslastung: float,
     max_pct: float,
 ) -> dict[str, float]:
     """
-    Relatives Band ggü. ``prices_last``: Halbspanne
-    ``r_k = (u_k · max_pct) / (mean_u · 100)`` (``max_pct`` als Prozentzahl, z. B. 1 für 1 %),
+    Relatives Band ggü. ``ecu_preise_last``: Halbspanne
+    ``r_k = (u_k · max_pct) / (gesamtauslastung · 100)`` (``max_pct`` als Prozentzahl, z. B. 1 für 1 %),
     ``prices_k`` in ``[p_alt_k·(1−r_k), p_alt_k·(1+r_k)]``.
     """
-    if max_pct <= 0.0 or mean_u <= 1e-15:
+    if max_pct <= 0.0 or gesamtauslastung <= 1e-15:
         return dict(prices)
     out: dict[str, float] = {}
     for k in BOUNDARY_KEYS:
-        pl = prices_last[k]
+        pl = ecu_preise_last[k]
         if pl <= 0.0:
             out[k] = prices[k]
             continue
-        r = (u_by[k] * max_pct) / (mean_u * 100.0)
+        r = (auslastung[k] * max_pct) / (gesamtauslastung * 100.0)
         lo = pl * (1.0 - r)
         hi = pl * (1.0 + r)
         out[k] = min(max(prices[k], lo), hi)
     return out
 
 
-def vej_ist_all_below_vet_ziel(vej_ist: dict[str, float], vet_ziel: dict[str, float], tol: float) -> bool:
+def nutzung_T_all_below_budget_T(nutzung_T: dict[str, float], budget_T: dict[str, float], tol: float) -> bool:
     """
-    Prüft, ob der Ist-Verbrauch an jeder Grenze das monatliche VET-Ziel nicht übersteigt.
+    Prüft, ob der Ist-Verbrauch an jeder Grenze das monatliche BudgetT nicht übersteigt.
 
-    Gibt ``True`` zurück, wenn für alle Grenzen ``vej_ist_i ≤ vet_ziel_i + tol`` gilt.
+    Gibt ``True`` zurück, wenn für alle Grenzen ``nutzung_T_i ≤ budget_T_i + tol`` gilt.
     """
-    return all(vej_ist[k] <= vet_ziel[k] + tol for k in BOUNDARY_KEYS)
+    return all(nutzung_T[k] <= budget_T[k] + tol for k in BOUNDARY_KEYS)
 
 
-def _mean_boundary_utilization_last_interval(timeline: ConsumptionTimeline) -> float:
-    """Mittel aus VEJ-Ist / VET-Ziel je Grenze im letzten Intervall."""
+def _gesamtauslastung_last_interval(timeline: ConsumptionTimeline) -> float:
+    """Mittel aus NutzungT / BudgetT je Grenze im letzten Intervall."""
     last = timeline.last
     parts: list[float] = []
     for k in BOUNDARY_KEYS:
-        v = last.vet_ziel_for(k)
-        c = last.vej_ist_for(k)
+        v = last.budget_T_for(k)
+        c = last.nutzung_T_for(k)
         parts.append(c / v if v > 0.0 else 0.0)
     return sum(parts) / float(len(BOUNDARY_KEYS))
 
 
-def _implied_elasticity_ols_from_timeline(
+def _geschaetzte_preiselastizitaet_ols_from_timeline(
     timeline: ConsumptionTimeline,
     boundary_key: str,
     eta_clip: tuple[float, float],
@@ -232,8 +307,8 @@ def _implied_elasticity_ols_from_timeline(
     ys: list[float] = []
     for idx in range(start, n_all):
         iv = timeline[idx]
-        p = iv.price_for(boundary_key)
-        c = iv.vej_ist_for(boundary_key)
+        p = iv.ecu_preis_for(boundary_key)
+        c = iv.nutzung_T_for(boundary_key)
         if p <= 0.0 or c <= 0.0:
             continue
         xs.append(math.log(p))
@@ -263,24 +338,24 @@ def _implied_elasticity_ols_from_timeline(
     return elasticity
 
 
-def _implied_elasticity_for_boundary(timeline: ConsumptionTimeline, boundary_key: str, price_cfg: PriceConfig) -> float | None:
-    """Nur OLS über die Timeline; ``None`` wenn zu wenige gültige Punkte (Schwelle = ``price_elasticity_warmup_months``, min. 2)."""
-    min_pts = max(2, int(price_cfg.price_elasticity_warmup_months))
-    return _implied_elasticity_ols_from_timeline(
+def _geschaetzte_preiselastizitaet_for_boundary(timeline: ConsumptionTimeline, boundary_key: str, price_cfg: PriceConfig) -> float | None:
+    """Nur OLS über die Timeline; ``None`` wenn zu wenige gültige Punkte (Schwelle = ``preisschritt_elastizitaet_ab``, min. 2)."""
+    min_pts = max(2, int(price_cfg.preisschritt_elastizitaet_ab))
+    return _geschaetzte_preiselastizitaet_ols_from_timeline(
         timeline,
         boundary_key,
-        price_cfg.price_eta_clip,
-        price_cfg.price_elasticity_history_lookback,
+        price_cfg.preiselastizitaet_eta_clip,
+        price_cfg.preiselastizitaet_history_lookback,
         min_pts,
     )
 
 
-def _raw_shadow_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str, float]:
+def _raw_ecu_preise_from_timeline(timeline: ConsumptionTimeline) -> dict[str, float]:
     """
-    Roh-Schattenpreise vor Normierung auf ``Σ p·VEJ-Ziel = ecumenge_ziel_J``.
+    Roh-ECU-Preise vor Normierung auf ``Σ ecu_preis·BudgetJ-Ziel = ecumenge_ziel``.
 
-    Unterhalb des monatlichen VET-Ziels: letzte Schattenpreise unverändert. Bei Überschreitung: Bump bzw. nach
-    ``price_elasticity_warmup_months`` Elastizität (OLS). ECU-Normierung in ``advance_shadow_prices``.
+    Unterhalb des monatlichen BudgetTs: letzte ECU-Preise unverändert. Bei Überschreitung: Bump bzw. nach
+    ``preisschritt_elastizitaet_ab`` Elastizität (OLS). ECU-Normierung in ``advance_ecu_preise``.
     """
     if len(timeline) == 0:
         raise ValueError("timeline muss mindestens ein ConsumptionInterval enthalten.")
@@ -288,150 +363,151 @@ def _raw_shadow_prices_from_timeline(timeline: ConsumptionTimeline) -> dict[str,
     price_cfg = timeline.price_config
     last_interval = timeline.last
     tol = price_cfg.tolerance
-    default_price_multiplier = price_cfg.price_bump
-    max_s = price_cfg.max_shadow_bundle_scale_pct_per_period
+    default_price_multiplier = price_cfg.preis_bump
+    max_s = price_cfg.deltagesamt_pct
     if max_s > 0.0:
         bump_cap = 1.0 + 2.0 * (max_s / 100.0)
         default_price_multiplier = min(default_price_multiplier, bump_cap)
 
-    vet_ziel_last = {k: last_interval.vet_ziel_for(k) for k in BOUNDARY_KEYS}
-    shadow_prices_last = {k: last_interval.price_for(k) for k in BOUNDARY_KEYS}
-    vej_ist_last = {k: last_interval.vej_ist_for(k) for k in BOUNDARY_KEYS}
+    budget_T_last = {k: last_interval.budget_T_for(k) for k in BOUNDARY_KEYS}
+    ecu_preise_last = {k: last_interval.ecu_preis_for(k) for k in BOUNDARY_KEYS}
+    nutzung_T_last = {k: last_interval.nutzung_T_for(k) for k in BOUNDARY_KEYS}
 
-    if vej_ist_all_below_vet_ziel(vej_ist_last, vet_ziel_last, tol):
-        return {k: float(shadow_prices_last[k]) for k in BOUNDARY_KEYS}
+    if nutzung_T_all_below_budget_T(nutzung_T_last, budget_T_last, tol):
+        return {k: float(ecu_preise_last[k]) for k in BOUNDARY_KEYS}
 
-    candidate_prices = {k: shadow_prices_last[k] for k in BOUNDARY_KEYS}
+    candidate_ecu_preise = {k: ecu_preise_last[k] for k in BOUNDARY_KEYS}
     eta_debug_parts: list[str] = []
-    in_warmup = len(timeline) < price_cfg.price_elasticity_warmup_months
+    in_warmup = len(timeline) < price_cfg.preisschritt_elastizitaet_ab
 
     for boundary_key in BOUNDARY_KEYS:
-        if vej_ist_last[boundary_key] <= vet_ziel_last[boundary_key] + tol:
-            eta_debug_parts.append(f"{boundary_key}=≤VET-Ziel")
+        if nutzung_T_last[boundary_key] <= budget_T_last[boundary_key] + tol:
+            eta_debug_parts.append(f"{boundary_key}=≤BudgetT")
             continue
 
         price_multiplier = default_price_multiplier
-        implied_elasticity: float | None = None
+        geschaetzte_preiselastizitaet: float | None = None
         branch = "bump"
         if not in_warmup and len(timeline) >= 2:
-            implied_elasticity = _implied_elasticity_for_boundary(timeline, boundary_key, price_cfg)
-            if implied_elasticity is not None:
-                vet_ziel_over_vej_ist = vet_ziel_last[boundary_key] / vej_ist_last[boundary_key]
-                if 0.0 < vet_ziel_over_vej_ist < 1.0:
-                    multiplier_from_elasticity = math.exp(math.log(vet_ziel_over_vej_ist) / implied_elasticity)
-                    mult_min, mult_max = price_cfg.price_step_multiplier_clip
+            geschaetzte_preiselastizitaet = _geschaetzte_preiselastizitaet_for_boundary(timeline, boundary_key, price_cfg)
+            if geschaetzte_preiselastizitaet is not None:
+                budget_T_over_nutzung_T = budget_T_last[boundary_key] / nutzung_T_last[boundary_key]
+                if 0.0 < budget_T_over_nutzung_T < 1.0:
+                    multiplier_from_elasticity = math.exp(math.log(budget_T_over_nutzung_T) / geschaetzte_preiselastizitaet)
+                    mult_min, mult_max = price_cfg.preis_schritt_multiplikator_clip
                     price_multiplier = max(mult_min, min(mult_max, multiplier_from_elasticity))
                     branch = "eta"
-        eta_s = "—" if implied_elasticity is None else f"{implied_elasticity:.4f}"
+        eta_s = "—" if geschaetzte_preiselastizitaet is None else f"{geschaetzte_preiselastizitaet:.4f}"
         eta_debug_parts.append(f"{boundary_key}:η={eta_s} mult={price_multiplier:.4f}({branch})")
-        candidate_prices[boundary_key] = candidate_prices[boundary_key] * price_multiplier
+        candidate_ecu_preise[boundary_key] = candidate_ecu_preise[boundary_key] * price_multiplier
 
-    if price_cfg.price_debug_print_elasticity:
+    if price_cfg.preiselastizitaet_debug_print:
         print(
             f"[geschätzte Preiselastizität] Beobachtungsmonat={last_interval.datum}  "
             + "  ".join(eta_debug_parts)
         )
-    return candidate_prices
+    return candidate_ecu_preise
 
 
-def exchange_rates_for_shadow_prices(prices: dict[str, float]) -> ExchangeRates:
-    """Tauschgrößen (ECU/Einheit) aus dem Schattenpreisvektor."""
+def exchange_rates_for_ecu_preise(prices: dict[str, float]) -> ExchangeRates:
+    """Tauschgrößen (ECU/Einheit) aus dem ECU-Preisvektor."""
     return rates_from_prices(prices)
 
 
-def advance_shadow_prices(
-    timeline: ConsumptionTimeline, vej_ziel: dict[str, float], fraction_of_vej_ziel: dict[str, float]
+def _advance_ecu_preise_soft_path(
+    timeline: ConsumptionTimeline, budget_J: dict[str, float], nutzung_anteil_budget: dict[str, float]
 ) -> ConsumptionTimeline:
-    """
-    Legt die Schattenpreise fest, **bevor** in dieser Periode konsumiert wird.
-
-    - **Leere Timeline** (erster Monat): ``initial_shadow_prices_for_ecu`` —
-      ``p_i = w_i·ecumenge_budget_J/vej_ist_i`` mit Referenz-``vej_ist_i = f_i·vej_ziel_i`` (Jahr);
-      ``ecumenge_budget_J`` aus ``timeline.ecumenge_ziel_sim_J`` falls gesetzt, sonst ``ecumenge_ziel_J``;
-      ``Σ p_i·vej_ist_i = ecumenge_budget_J``.
-    - **Sonst**: Rohpreise aus ``_raw_shadow_prices_from_timeline``.
-    - **Warmup** (``len(timeline) < price_elasticity_warmup_months`` und ``max_pct > 0``): nur
-      ``_clamp_shadow_prices_vs_last_by_utilization_share`` auf den Rohpreisen (keine Normierung auf
-      ``Σ p·VEJ-Ziel = ecumenge_ziel_J``); bei hoher Auslastung wie im weichen Pfad Ratchet auf ``ecumenge_ziel_sim_J``
-      und ``ecumenge_T_override``. Zusätzlich ``warmup_diag_*`` für ``Σ p·vet_ziel`` vs. Referenz/Monat.
-    - **Nach Warmup**: **weicher** Pfad bei hoher Auslastung: Ratchet + gleiche Nutzungs-Klemme wie im Warmup auf
-      Rohpreise, dann schrittweise Annäherung von ``Σ p·VEJ-Ziel`` an ``ecumenge_ziel_sim_J`` mit
-      ``scale_percentual_to_ecu`` (± ``p`` % ggü. Vorperiode, ohne grenzenweise Roh-Multiplikatoren).
-      ``scale_percentual_to_ecu`` inkl. Überschuss-Relativierung; bei ``max_pct=0`` ``scale_budget_to_ecu``.
-
-    Setzt ``timeline.prices_for_next_consumption``.
-    """
+    """Weicher/harter Legacy-Pfad: Bump/OLS-η, Ratchet bei hoher Auslastung, ``scale_percentual_to_ecu``."""
     if len(timeline) == 0:
         timeline.ecumenge_T_override = None
+        timeline.last_elastikfaktor = {k: 1.0 for k in BOUNDARY_KEYS}
         ecumenge_budget_J = (
-            timeline.ecumenge_ziel_sim_J
-            if timeline.ecumenge_ziel_sim_J > 0.0
-            else timeline.ecumenge_ziel_J
+            timeline.ecumenge_ziel_sim
+            if timeline.ecumenge_ziel_sim > 0.0
+            else timeline.ecumenge_ziel
         )
-        timeline.prices_for_next_consumption = initial_shadow_prices_for_ecu(
-            vej_ziel, fraction_of_vej_ziel, ecumenge_budget_J
+        timeline.ecu_preise_for_next_consumption = initial_ecu_preise_for_ecu(
+            budget_J, nutzung_anteil_budget, ecumenge_budget_J
         )
         return timeline
 
     price_cfg = timeline.price_config
     last_interval = timeline.last
-    vet_ziel_last = {k: last_interval.vet_ziel_for(k) for k in BOUNDARY_KEYS}
-    timeline.warmup_diag_sum_p_vet_ziel_monthly = None
+    budget_T_last = {k: last_interval.budget_T_for(k) for k in BOUNDARY_KEYS}
+    timeline.warmup_diag_sum_ecu_preis_budget_T_monthly = None
     timeline.warmup_diag_ecumenge_ziel_sim_monthly = None
 
-    raw = _raw_shadow_prices_from_timeline(timeline)
-    prices_last = {k: last_interval.price_for(k) for k in BOUNDARY_KEYS}
-    bundle_previous = bundle_value(prices_last, vej_ziel)
-    mean_u = _mean_boundary_utilization_last_interval(timeline)
-    max_pct = price_cfg.max_shadow_bundle_scale_pct_per_period
-    threshold = mean_utilization_soft_path_threshold(max_pct)
-    u_by = {
-        k: (last_interval.vej_ist_for(k) / vet_ziel_last[k]) if vet_ziel_last[k] > 0.0 else 0.0
+    raw = _raw_ecu_preise_from_timeline(timeline)
+    ecu_preise_last = {k: last_interval.ecu_preis_for(k) for k in BOUNDARY_KEYS}
+    kontenrahmen_previous = ecumenge_kontenrahmen_wert(ecu_preise_last, budget_J)
+    gesamtauslastung = _gesamtauslastung_last_interval(timeline)
+    max_pct = price_cfg.deltagesamt_pct
+    threshold = gesamtauslastung_soft_path_threshold(max_pct)
+    auslastung = {
+        k: (last_interval.nutzung_T_for(k) / budget_T_last[k]) if budget_T_last[k] > 0.0 else 0.0
         for k in BOUNDARY_KEYS
     }
 
-    in_warmup = len(timeline) < int(price_cfg.price_elasticity_warmup_months)
+    in_warmup = len(timeline) < int(price_cfg.preisschritt_elastizitaet_ab)
     if in_warmup and max_pct > 0.0:
-        if mean_u > threshold:
-            timeline.ecumenge_ziel_sim_J = ratchet_ecumenge_ziel_sim_J(
-                timeline.ecumenge_ziel_sim_J, timeline.ecumenge_ziel_J_konfig, max_pct
+        if gesamtauslastung > threshold:
+            timeline.ecumenge_ziel_sim = ratchet_ecumenge_ziel_sim(
+                timeline.ecumenge_ziel_sim, timeline.ecumenge_ziel_konfig, max_pct
             )
-            timeline.ecumenge_T_override = timeline.ecumenge_ziel_sim_J / float(MONTHS_PER_YEAR)
+            timeline.ecumenge_T_override = timeline.ecumenge_ziel_sim / float(MONTHS_PER_YEAR)
         else:
             timeline.ecumenge_T_override = None
-        p_w = _clamp_shadow_prices_vs_last_by_utilization_share(raw, prices_last, u_by, mean_u, max_pct)
-        timeline.prices_for_next_consumption = p_w
-        timeline.warmup_diag_sum_p_vet_ziel_monthly = bundle_p_times_vet_ziel(p_w, vet_ziel_last)
-        timeline.warmup_diag_ecumenge_ziel_sim_monthly = timeline.ecumenge_ziel_sim_J / float(MONTHS_PER_YEAR)
+        p_w = _clamp_ecu_preise_vs_last_by_auslastung_share(raw, ecu_preise_last, auslastung, gesamtauslastung, max_pct)
+        timeline.ecu_preise_for_next_consumption = p_w
+        timeline.warmup_diag_sum_ecu_preis_budget_T_monthly = ecumenge_kontenrahmen_p_times_budget_T(p_w, budget_T_last)
+        timeline.warmup_diag_ecumenge_ziel_sim_monthly = timeline.ecumenge_ziel_sim / float(MONTHS_PER_YEAR)
+        timeline.last_elastikfaktor = {k: 1.0 for k in BOUNDARY_KEYS}
         return timeline
 
-    if max_pct > 0.0 and mean_u > threshold:
-        raw_for_scale = _clamp_shadow_prices_vs_last_by_utilization_share(raw, prices_last, u_by, mean_u, max_pct)
-        timeline.ecumenge_ziel_sim_J = ratchet_ecumenge_ziel_sim_J(
-            timeline.ecumenge_ziel_sim_J, timeline.ecumenge_ziel_J_konfig, max_pct
+    if max_pct > 0.0 and gesamtauslastung > threshold:
+        raw_for_scale = _clamp_ecu_preise_vs_last_by_auslastung_share(raw, ecu_preise_last, auslastung, gesamtauslastung, max_pct)
+        timeline.ecumenge_ziel_sim = ratchet_ecumenge_ziel_sim(
+            timeline.ecumenge_ziel_sim, timeline.ecumenge_ziel_konfig, max_pct
         )
-        timeline.ecumenge_T_override = timeline.ecumenge_ziel_sim_J / float(MONTHS_PER_YEAR)
-        timeline.prices_for_next_consumption = scale_percentual_to_ecu(
+        timeline.ecumenge_T_override = timeline.ecumenge_ziel_sim / float(MONTHS_PER_YEAR)
+        timeline.ecu_preise_for_next_consumption = scale_percentual_to_ecu(
             raw_for_scale,
-            vej_ziel,
-            timeline.ecumenge_ziel_sim_J,
+            budget_J,
+            timeline.ecumenge_ziel_sim,
             max_pct,
-            bundle_previous,
+            kontenrahmen_previous,
         )
     else:
         timeline.ecumenge_T_override = None
         if max_pct > 0.0:
-            timeline.prices_for_next_consumption = scale_percentual_to_ecu(
+            timeline.ecu_preise_for_next_consumption = scale_percentual_to_ecu(
                 raw,
-                vej_ziel,
-                timeline.ecumenge_ziel_J_konfig,
+                budget_J,
+                timeline.ecumenge_ziel_konfig,
                 max_pct,
-                bundle_previous,
-                mean_utilization=mean_u,
-                utilization_by_boundary=u_by,
+                kontenrahmen_previous,
+                gesamtauslastung=gesamtauslastung,
+                auslastung=auslastung,
             )
         else:
-            timeline.prices_for_next_consumption = scale_budget_to_ecu(
-                raw, vej_ziel, timeline.ecumenge_ziel_J_konfig
+            timeline.ecu_preise_for_next_consumption = scale_budget_to_ecu(
+                raw, budget_J, timeline.ecumenge_ziel_konfig
             )
+    timeline.last_elastikfaktor = {k: 1.0 for k in BOUNDARY_KEYS}
     return timeline
+
+
+def advance_ecu_preise(
+    timeline: ConsumptionTimeline, budget_J: dict[str, float], nutzung_anteil_budget: dict[str, float]
+) -> ConsumptionTimeline:
+    """
+    Legt die ECU-Preise fest, **bevor** in dieser Periode konsumiert wird.
+
+    ``price_algorithm=text`` (Standard): Quote_t Absenkung/Zielphase (``logic.quota``), ``P_k = EcumengeT/N/Quote_t_k``,
+    Elastikfaktor ab Schritt 5, Normierung ``Σ P·Quote_t = EcumengeT``.
+
+    ``price_algorithm=soft_path``: Legacy Bump/OLS-η mit Ratchet und ``scale_percentual_to_ecu``.
+    """
+    if timeline.price_config.price_algorithm == "soft_path":
+        return _advance_ecu_preise_soft_path(timeline, budget_J, nutzung_anteil_budget)
+    return _advance_ecu_preise_text(timeline, budget_J, nutzung_anteil_budget)
