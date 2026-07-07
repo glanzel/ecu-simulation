@@ -11,7 +11,7 @@ class PriceConfig:
     """Parameter für Preisschätzung aus der ConsumptionTimeline."""
 
     price_algorithm: Literal["text", "soft_path"] = "text"
-    elasticity_factor_alpha: float = 0.1
+    elasticity_factor_alpha: float = 2
     # Multiplikator pro Grenze bei BudgetT-Überschreitung (soft_path), wenn kein OLS-Zweig greift.
     preis_bump: float = 1.08
     tolerance: float = 1e-9
