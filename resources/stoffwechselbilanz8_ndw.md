@@ -87,11 +87,13 @@ Die Startpreise in Ecu ergeben sich aus dem aktuellen Verbrauch
 Ecuco2 = ( Ecumenge_t / N ) / Nutzung_t0co2
 ```
 
-Die Start-Ecumenge (Jahr) wird mindestens als EcumengeZiel gewählt; bei Überlastung zum Start wird sie mit dem Verhältnis der Summen skaliert.
+Die Start-Ecumenge (Jahr) wird mindestens als EcumengeZiel gewählt; bei Überlastung zum Start wird sie mit der Gesamtauslastung skaliert.
 
 ```
-EcumengeJ = EcumengeZiel * max(1, Summe(Nutzung_t0g) / Summe(Budget_t0g))
+EcumengeJ = EcumengeZiel * max(1, Gesamtauslastung_t0)
 ```
+
+mit `Gesamtauslastung_t0 = Summe(Nutzung_t0x/Budget_t0x) / N` (wie oben, zum Startzeitpunkt t0).
 
 Die monatliche Ecumenge (Ecumenge_T) sinkt während der Absenkungsphase (Gesamtauslastung > 1) in jedem Schritt (zb Monat) um einen politisch festgelegten Prozentanteil (Deltagesamt, z. B. 1 = 1 %), nicht unter EcumengeZiel/12.
 Liegt die Gesamtauslastung ≤ 1, wird die Ecumenge eingefroren; `Ecumenge_T` bleibt dann auf dem erreichten Niveau.

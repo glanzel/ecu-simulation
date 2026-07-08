@@ -25,7 +25,7 @@ def chart_payload_dict(results: list[PeriodResult], *, i18n: SimulationI18n) -> 
             "labels": [],
             "boundaries": [],
             "meanUtilization": [],
-            "ecumenge_kontenrahmen_T": [],
+            "ecu_summe_p_budget_T": [],
             "ecu_ist_T": [],
             "ecumenge_ziel_T": [],
             "ecumenge_ziel_sim_T": [],
@@ -42,7 +42,7 @@ def chart_payload_dict(results: list[PeriodResult], *, i18n: SimulationI18n) -> 
         for b in ALL_BOUNDARIES
     ]
     gesamtauslastung = [_num_json(r.gesamtauslastung) for r in results]
-    bundle_m = [_num_json(r.ecumenge_kontenrahmen * inv_y) for r in results]
+    bundle_m = [_num_json(r.ecu_summe_p_budget_J * inv_y) for r in results]
     exp = [_num_json(r.ecu_ist_T) for r in results]
     ziel_cfg_m = [_num_json(r.ecumenge_ziel * inv_y) for r in results]
     ziel_sim_m = [_num_json(r.consumption_timeline.ecumenge_ziel_sim * inv_y) for r in results]
@@ -69,7 +69,7 @@ def chart_payload_dict(results: list[PeriodResult], *, i18n: SimulationI18n) -> 
         "labels": labels,
         "boundaries": boundaries,
         "meanUtilization": gesamtauslastung,
-        "ecumenge_kontenrahmen_T": bundle_m,
+        "ecu_summe_p_budget_T": bundle_m,
         "ecu_ist_T": exp,
         "ecumenge_ziel_T": ziel_cfg_m,
         "ecumenge_ziel_sim_T": ziel_sim_m,

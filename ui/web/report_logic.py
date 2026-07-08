@@ -101,7 +101,7 @@ def yearly_ecu_table_rows(rows: list[YearlyEcuSummary]) -> list[list[str]] | Non
         rrows.append(
             [
                 str(y.year_index),
-                fmt_num(y.ecumenge_kontenrahmen),
+                fmt_num(y.ecu_summe_p_budget_J),
                 fmt_num(y.slack_vej),
                 fmt_pct(y.gesamtauslastung),
             ]

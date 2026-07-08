@@ -32,7 +32,7 @@ def _assert_ecu_monthly_cap(results) -> None:
 
 
 def test_ecuj_bundle_at_least_floor():
-    """Kontenrahmen: EcuJ ≤ Σ p_i·VEJ_i (Slack erlaubt), bei überall f_i ≤ 1."""
+    """ecu_summe_p_budget_J: bei überall f_i ≤ 1 gilt Slack ≥ 0 (Toleranz)."""
     cfg = SimulationConfig(
         ecumenge_ziel=1.0,
         random_seed=1,
@@ -41,7 +41,7 @@ def test_ecuj_bundle_at_least_floor():
     results = run_simulation(cfg, months=2)
     _audit("test_ecuj_bundle_at_least_floor", results)
     for r in results:
-        assert r.ecumenge_kontenrahmen + TOL >= r.ecumenge_ziel
+        assert r.ecu_summe_p_budget_J + TOL >= r.ecumenge_ziel
     _assert_ecu_monthly_cap(results)
 
 

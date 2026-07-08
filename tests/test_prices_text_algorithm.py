@@ -9,7 +9,7 @@ from logic.price_config import PriceConfig
 from logic.prices import (
     _ecu_preise_from_quota,
     advance_ecu_preise,
-    ecumenge_kontenrahmen_wert,
+    ecu_summe_p_wert,
     scale_to_quota_budget,
 )
 from logic.quota import QuotaCalculator
@@ -76,7 +76,7 @@ def test_scale_to_quota_budget_invariant():
     ecumenge_T = 10_000.0
     raw = _ecu_preise_from_quota(ecumenge_T, quota.quote_T)
     scaled = scale_to_quota_budget(raw, quota.quote_T, ecumenge_T)
-    assert ecumenge_kontenrahmen_wert(scaled, quota.quote_T) == pytest.approx(ecumenge_T, rel=1e-9)
+    assert ecu_summe_p_wert(scaled, quota.quote_T) == pytest.approx(ecumenge_T, rel=1e-9)
 
 
 def test_text_path_sets_quota_on_timeline():
@@ -94,5 +94,5 @@ def test_text_path_sets_quota_on_timeline():
     advance_ecu_preise(tl, budget_J, frac)
     assert tl.last_quota is not None
     assert tl.ecu_preise_for_next_consumption is not None
-    bundle = ecumenge_kontenrahmen_wert(tl.ecu_preise_for_next_consumption, tl.last_quota.quote_T)
+    bundle = ecu_summe_p_wert(tl.ecu_preise_for_next_consumption, tl.last_quota.quote_T)
     assert bundle == pytest.approx(tl.ecumenge_T_override, rel=0.01)

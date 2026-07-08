@@ -32,7 +32,7 @@ from logic.prices import (
     _geschaetzte_preiselastizitaet_for_boundary,
     _raw_ecu_preise_from_timeline,
     advance_ecu_preise,
-    ecumenge_kontenrahmen_wert,
+    ecu_summe_p_wert,
     initial_ecu_preise_for_ecu,
     gesamtauslastung_soft_path_threshold,
     ratchet_ecumenge_ziel_sim,
@@ -77,20 +77,20 @@ def test_advance_ecu_preise_soft_ecu_path_ratchet_and_bundle():
         ecumenge_ziel_sim=ecu_start_effective,
     )
     tl.append(ConsumptionInterval.from_observation(1, DAYS_PER_MONTH, p0, nutzung_T, budget_T))
-    kontenrahmen_prev = ecumenge_kontenrahmen_wert(p0, budget_J)
+    summe_p_budget_J_prev = ecu_summe_p_wert(p0, budget_J)
     advance_ecu_preise(tl, budget_J, frac)
     expected_effective = ratchet_ecumenge_ziel_sim(ecu_start_effective, ecu_cfg, 1.0)
     assert tl.ecumenge_ziel_sim == pytest.approx(expected_effective)
     assert tl.ecu_preise_for_next_consumption is not None
-    bundle = ecumenge_kontenrahmen_wert(tl.ecu_preise_for_next_consumption, budget_J)
+    bundle = ecu_summe_p_wert(tl.ecu_preise_for_next_consumption, budget_J)
     half = pc.deltagesamt_pct / 100.0
-    assert kontenrahmen_prev * (1.0 - half) - 1e-6 <= bundle <= kontenrahmen_prev * (1.0 + half) + 1e-6
+    assert summe_p_budget_J_prev * (1.0 - half) - 1e-6 <= bundle <= summe_p_budget_J_prev * (1.0 + half) + 1e-6
     ecu_preise_last = {k: p0[k] for k in BOUNDARY_KEYS}
     auslastung = {k: nutzung_T[k] / budget_T[k] for k in BOUNDARY_KEYS}
     raw = _raw_ecu_preise_from_timeline(tl)
     clamped = _clamp_ecu_preise_vs_last_by_auslastung_share(raw, ecu_preise_last, auslastung, 2.2, pc.deltagesamt_pct)
-    expected_bundle = ecumenge_kontenrahmen_wert(
-        scale_percentual_to_ecu(clamped, budget_J, expected_effective, pc.deltagesamt_pct, kontenrahmen_prev),
+    expected_bundle = ecu_summe_p_wert(
+        scale_percentual_to_ecu(clamped, budget_J, expected_effective, pc.deltagesamt_pct, summe_p_budget_J_prev),
         budget_J,
     )
     assert bundle == pytest.approx(expected_bundle, abs=1e-3)
@@ -192,7 +192,7 @@ def test_warmup_price_path_clamped_only_no_scale_to_ecu():
     assert tl.warmup_diag_ecumenge_ziel_sim_monthly == pytest.approx(expected_ratchet / float(MONTHS_PER_YEAR))
     p = tl.ecu_preise_for_next_consumption
     assert p is not None
-    bv = ecumenge_kontenrahmen_wert(p, budget_J)
+    bv = ecu_summe_p_wert(p, budget_J)
     assert abs(bv - expected_ratchet) > 1.0
     assert tl.ecumenge_T_override is not None
 

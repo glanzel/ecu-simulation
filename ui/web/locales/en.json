@@ -27,7 +27,7 @@
   },
   "sections": {
     "run_params": "Run parameters",
-    "warmup": "Warmup — shadow prices (without aligning annual ECU BudgetJ target to ecumenge_ziel)",
+    "warmup": "Warmup — shadow prices (without aligning ecu_summe_p_budget_J to ecumenge_ziel)",
     "yearly_ecu": "Annual overview — ECU (all boundaries)",
     "charts": "Charts",
     "boundaries": "Boundaries"
@@ -39,21 +39,22 @@
     "start_demand_label": "Initial demand (% BudgetJ target)"
   },
   "warmup": {
-    "footnote": "Only in the first N months (configuration preisschritt_elastizitaet_ab): per boundary the step r_k relative to the previous month's price; no alignment of annual ECU BudgetJ target to the effective simulated annual target. Columns: monthly sum p·VET target, reference ecumenge_ziel_sim/12 (after ratchet if any), monthly deviation and annualized (12·Δ month)."
+    "footnote": "Only in the first N months (configuration preisschritt_elastizitaet_ab): per boundary the step r_k relative to the previous month's price; no alignment of ecu_summe_p_budget_J to the effective simulated annual target. Columns: ecu_summe_p_budget_T, reference ecumenge_ziel_sim/12 (after ratchet if any), monthly deviation and annualized (12·Δ month)."
   },
   "yearly_ecu": {
-    "footnote": "Annual ECU BudgetJ target (bundle) = annual value Σ p_i·budget_J_i at the price vector at year end (account framework). In the “ECU accounts” chart the same quantity is also shown as a monthly share (÷12) alongside actual and reference lines. Slack = annual Σ ecu_preis·BudgetJ target minus configured ecumenge_ziel — zero under exact normalization; on the soft path it may differ from 0 (gradual approach to simulated annual budget ecumenge_ziel_sim). Chart “ECU accounts”: ecumenge_ziel_sim (month) and ecumenge_T are separate curves (ecumenge_T = simulated monthly outflow for Σ p·c; may differ from the ratchet monthly share, e.g. in the first month). Mean util. = mean of NutzungT / VET target per boundary (can be > 1)."
+    "footnote": "Annual ecu_summe_p_budget_J = Σ p_i·budget_J_i at the year-end price vector (ECU cost of full budget bundle). In the ECU accounts chart the same quantity is shown as ecu_summe_p_budget_T (÷12) alongside actual and reference lines. Slack = ecu_summe_p_budget_J minus configured ecumenge_ziel — zero under exact normalization; on the soft path it may differ from 0. Chart “ECU accounts”: ecumenge_ziel_sim (month) and ecumenge_T are separate curves. Mean util. = mean of NutzungT / VET target per boundary (can be > 1)."
   },
   "charts": {
     "gesamtauslastung_caption": "Overall utilization (mean NutzungT / VET target)",
-    "ecu_totals_caption": "ECU accounts (all monthly): framework, booked, configured target, effective annual budget (ratchet), budget cap",
+    "ecu_totals_caption": "ECU accounts (all monthly): ECU cost budgets, booked, configured target, effective annual budget (ratchet), budget cap",
     "pct_budget_T_caption": "Utilization per boundary (NutzungT / VET target, %)",
     "price_caption": "Shadow price per boundary (ECU / unit)",
     "elastikfaktor_caption": "Elasticity factor per boundary (cybernetic price factor)",
     "x_axis": "Month (simulation)",
     "gesamtauslastung_dataset": "Mean utilization (Ø NutzungT / VET target)",
     "gesamtauslastung_y": "Utilization (unitless, can be > 1)",
-    "ecumenge_kontenrahmen_T": "ecumenge_kontenrahmen_T (framework, month)",
+    "ecu_summe_p_budget_J": "ECU cost budgets (year)",
+    "ecu_summe_p_budget_T": "ECU cost budgets (month)",
     "ecu_ist_T": "ecu_ist_T (consumption, month)",
     "ecumenge_ziel_T": "ecumenge_ziel_T (long-term target, configured, month)",
     "ecumenge_ziel_sim_T": "ecumenge_ziel_sim_T (sim. target, ratchet, month)",
@@ -77,10 +78,10 @@
   },
   "tables": {
     "run_params_hdr": ["ecumenge_ziel", "Years", "Budget", "σ dem.", "σ ε", "Seed"],
-    "yearly_ecu_hdr": ["Year", "Annual ECU BudgetJ target (bundle)", "Slack", "Mean util."],
+    "yearly_ecu_hdr": ["Year", "ECU cost budgets (year)", "Slack", "Mean util."],
     "month_hdr": ["Mon", "p", "NutzungT", "ECU NutzungT", "Demand", "VET target", "Actual / VET target %"],
     "year_hdr": ["Year", "Ø p", "Σ NutzungT", "Σ Demand", "Σ ECU NutzungT", "BudgetJ target", "Σ Actual / target %"],
     "boundary_summary_hdr": ["Boundary", "Σ NutzungT", "Σ Demand", "Σ ECU NutzungT", "BudgetJ target", "Σ Actual / target %"],
-    "warmup_diag_hdr": ["Mon", "Σ ecu_preis·BudgetT target (mo.)", "ecumenge_ziel_sim/12", "Δ month", "Δ year"]
+    "warmup_diag_hdr": ["Mon", "ecu_summe_p_budget_T", "ecumenge_ziel_sim/12", "Δ month", "Δ year"]
   }
 }

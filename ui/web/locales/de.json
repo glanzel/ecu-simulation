@@ -27,7 +27,7 @@
   },
   "sections": {
     "run_params": "Laufparameter",
-    "warmup": "Warmup — ECU-Preise (ohne Angleich Ecu BudgetJ ges. (Jahr) an ecumenge_ziel)",
+    "warmup": "Warmup — ECU-Preise (ohne Angleich ecu_summe_p_budget_J an ecumenge_ziel)",
     "yearly_ecu": "Jahresübersicht — ECU (alle Grenzen)",
     "charts": "Diagramme",
     "boundaries": "Grenzen"
@@ -39,21 +39,22 @@
     "start_demand_label": "Start-Nachfrage (% BudgetJ)"
   },
   "warmup": {
-    "footnote": "Nur in den ersten N Monaten (Konfiguration preisschritt_elastizitaet_ab): pro Grenze die Staffel r_k gegenüber dem Vormonatspreis; kein Angleichen von Ecu BudgetJ ges. (Jahr) an das wirksames simuliertes Jahresziel. Spalten: Monatswert Summe p·BudgetT, Referenz ecumenge_ziel_sim/12 (nach ggf. Ratchet), Abweichung Monat und hochgerechnet Jahr (12·Δ Monat)."
+    "footnote": "Nur in den ersten N Monaten (Konfiguration preisschritt_elastizitaet_ab): pro Grenze die Staffel r_k gegenüber dem Vormonatspreis; kein Angleichen von ecu_summe_p_budget_J an das wirksame simulierte Jahresziel. Spalten: ecu_summe_p_budget_T, Referenz ecumenge_ziel_sim/12 (nach ggf. Ratchet), Abweichung Monat und hochgerechnet Jahr (12·Δ Monat)."
   },
   "yearly_ecu": {
-    "footnote": "Ecu BudgetJ ges. (Jahr) = Jahreswert Σ p_i·budget_J_i zum Preisvektor am Jahresende (Kontenrahmen). Im Diagramm „ECU-Konten“ ist dieselbe Größe zusätzlich als Monatsanteil (÷12) gegenüber Ist und Referenzlinien. Slack = Jahreswert Σ ecu_preis·BudgetJ-Ziel minus konfiguriertes ecumenge_ziel — bei exakter Normierung 0; im weichen Pfad kann er von 0 abweichen (schrittweise Annäherung ans simulierte Jahresbudget ecumenge_ziel_sim). Diagramm „ECU-Konten“: ecumenge_ziel_sim (Monat) und ecumenge_T sind dort eigene Kurven (ecumenge_T = simulierte ausgegebene Monatsmenge für Σ p·c; kann vom Ratchet-Monatsanteil abweichen, z. B. im ersten Monat). Ø Auslast. = Mittel aus NutzungT / BudgetT je Grenze (kann > 1)."
+    "footnote": "ecu_summe_p_budget_J = Jahreswert Σ p_i·budget_J_i zum Preisvektor am Jahresende (ECU-Kosten volles Budget). Im Diagramm „ECU-Konten“ ist dieselbe Größe als ecu_summe_p_budget_T (÷12) gegenüber Ist und Referenzlinien. Slack = ecu_summe_p_budget_J minus konfiguriertes ecumenge_ziel — bei exakter Normierung 0; im weichen Pfad kann er von 0 abweichen (schrittweise Annäherung ans simulierte Jahresbudget ecumenge_ziel_sim). Diagramm „ECU-Konten“: ecumenge_ziel_sim (Monat) und ecumenge_T sind dort eigene Kurven (ecumenge_T = simulierte ausgegebene Monatsmenge für Σ p·c; kann vom Ratchet-Monatsanteil abweichen, z. B. im ersten Monat). Ø Auslast. = Mittel aus NutzungT / BudgetT je Grenze (kann > 1)."
   },
   "charts": {
     "gesamtauslastung_caption": "Gesamtauslastung (Mittel NutzungT / BudgetT)",
-    "ecu_totals_caption": "ECU-Konten (alles pro Monat): Kontenrahmen, verbucht, konfiguriertes Soll, wirksames Jahresbudget (Ratchet), Budget-Decke",
+    "ecu_totals_caption": "ECU-Konten (alles pro Monat): ECU-Kosten Budgets, verbucht, konfiguriertes Soll, wirksames Jahresbudget (Ratchet), Budget-Decke",
     "pct_budget_T_caption": "Auslastung pro Grenze (NutzungT / BudgetT, %)",
     "price_caption": "ECU-Preis pro Grenze (ECU / Einheit)",
     "elastikfaktor_caption": "Elastikfaktor pro Grenze (kybernetischer Preisfaktor)",
     "x_axis": "Monat (Simulation)",
     "gesamtauslastung_dataset": "Mittlere Auslastung (Ø NutzungT / BudgetT)",
     "gesamtauslastung_y": "Auslastung (ohne Einheit, kann > 1)",
-    "ecumenge_kontenrahmen_T": "ecumenge_kontenrahmen_T (Kontenrahmen, Monat)",
+    "ecu_summe_p_budget_J": "ECU-Kosten Budgets (Jahr)",
+    "ecu_summe_p_budget_T": "ECU-Kosten Budgets (Monat)",
     "ecu_ist_T": "ecu_ist_T (Verbrauch, Monat)",
     "ecumenge_ziel_T": "ecumenge_ziel_T (Ziel langfristig, konfig., Monat)",
     "ecumenge_ziel_sim_T": "ecumenge_ziel_sim_T (Ziel sim., Ratchet, Monat)",
@@ -77,10 +78,10 @@
   },
   "tables": {
     "run_params_hdr": ["ecumenge_ziel", "Jahre", "Budget", "σ dem.", "σ ε", "Seed"],
-    "yearly_ecu_hdr": ["Jahr", "Ecu BudgetJ ges. (Jahr)", "Slack", "Ø Auslast."],
+    "yearly_ecu_hdr": ["Jahr", "ECU-Kosten Budgets (Jahr)", "Slack", "Ø Auslast."],
     "month_hdr": ["Mon", "p", "NutzungT", "Ecu NutzungT", "Demand", "BudgetT", "Ist / BudgetT %"],
     "year_hdr": ["Jahr", "Ø p", "Σ NutzungT", "Σ Demand", "Σ Ecu NutzungT", "BudgetJ", "Σ Ist / Ziel %"],
     "boundary_summary_hdr": ["Grenze", "Σ NutzungT", "Σ Demand", "Σ Ecu NutzungT", "BudgetJ", "Σ Ist / Ziel %"],
-    "warmup_diag_hdr": ["Mon", "Σ ecu_preis·BudgetT-Ziel (Mon.)", "ecumenge_ziel_sim/12", "Δ Monat", "Δ Jahr"]
+    "warmup_diag_hdr": ["Mon", "ecu_summe_p_budget_T", "ecumenge_ziel_sim/12", "Δ Monat", "Δ Jahr"]
   }
 }

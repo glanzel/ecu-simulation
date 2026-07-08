@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from logic.initial_ecu_preise import initial_weights_uniform, prices_from_weights
 from logic.observations import BOUNDARY_KEYS
 from logic.prices import initial_ecu_preise_for_ecu
@@ -31,3 +33,17 @@ def test_ecumenge_J_not_below_ecumenge_ziel_when_overloaded_start() -> None:
     results = run_simulation(cfg, months=1)
     assert results[0].ecumenge_J == ist
     assert results[0].ecumenge_T == ist / 12.0
+
+
+def test_ecumenge_J_scales_with_gesamtauslastung_at_default_start() -> None:
+    from logic.planetary_constants import default_start_demand_by_key
+    from simulation.simulation import berechne_gesamtauslastung, budget_T_from_budget_J, ecumenge_J_from_start
+
+    budget_J = build_budget_J_bundle()
+    frac = default_start_demand_by_key()
+    budget_T = budget_T_from_budget_J(budget_J)
+    nutzung_T = {k: frac[k] * budget_T[k] for k in BOUNDARY_KEYS}
+    ecumenge_ziel = 100_000.0
+    u = berechne_gesamtauslastung(nutzung_T, budget_T)
+    assert u > 1.0
+    assert ecumenge_J_from_start(frac, budget_J, ecumenge_ziel) == pytest.approx(ecumenge_ziel * u)

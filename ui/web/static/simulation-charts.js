@@ -92,8 +92,8 @@
           labels: labels,
           datasets: [
             {
-              label: label(payload, "ecumenge_kontenrahmen_T", "ecumenge_kontenrahmen_T"),
-              data: payload.ecumenge_kontenrahmen_T,
+              label: label(payload, "ecu_summe_p_budget_T", "ECU-Kosten Budgets"),
+              data: payload.ecu_summe_p_budget_T,
               borderColor: colors[1],
               tension: 0.15,
               fill: false,

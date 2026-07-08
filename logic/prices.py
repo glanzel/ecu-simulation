@@ -31,15 +31,13 @@ if TYPE_CHECKING:
 
 
 
-def ecumenge_kontenrahmen_p_times_budget_T(prices: dict[str, float], budget_T: dict[str, float]) -> float:
-    """Monatlicher ECU-Wert bei voller Ausnutzung von ``budget_T``: ``Σ_i p_i·budget_T_i``."""
+def ecu_summe_p_budget_T(prices: dict[str, float], budget_T: dict[str, float]) -> float:
+    """Monatlicher ECU-Wert bei vollem Budget: ``Σ_i p_i·budget_T_i`` (``ecu_summe_p_budget_J / 12``)."""
     return sum(prices[k] * budget_T[k] for k in BOUNDARY_KEYS)
 
 
-def ecumenge_kontenrahmen_wert(prices: dict[str, float], quantities: dict[str, float]) -> float:
-    """
-    ``Σ_i p_i · q_i`` in ECU: ``q`` z. B. ``budget_J`` (Jahr) oder ``nutzung_T`` (Monat), konsistent zu ``p``.
-    """
+def ecu_summe_p_wert(prices: dict[str, float], quantities: dict[str, float]) -> float:
+    """``Σ_i p_i · q_i`` in ECU; ``q`` z. B. ``budget_J``, ``budget_T``, ``nutzung_T`` oder ``quote_T``."""
     return sum(prices[k] * quantities[k] for k in BOUNDARY_KEYS)
 
 
@@ -49,10 +47,10 @@ def scale_budget_to_ecu(prices: dict[str, float], budget_J: dict[str, float], ec
 
     Kein ``_clamp_scale_toward_budget`` — nur gemeinsamer Faktor ``ecumenge_ziel / Σ ecu_preis·BudgetJ-Ziel``.
     """
-    kontenrahmen_total = ecumenge_kontenrahmen_wert(prices, budget_J)
-    if kontenrahmen_total <= 0:
+    ecu_summe_p_budget_J_total = ecu_summe_p_wert(prices, budget_J)
+    if ecu_summe_p_budget_J_total <= 0:
         raise ValueError("Summe p·BudgetJ muss positiv sein.")
-    scale_factor = ecumenge_ziel / kontenrahmen_total
+    scale_factor = ecumenge_ziel / ecu_summe_p_budget_J_total
     return {k: prices[k] * scale_factor for k in BOUNDARY_KEYS}
 
 
@@ -98,7 +96,7 @@ def scale_percentual_to_ecu(
     budget_J: dict[str, float],
     ecumenge_ziel: float,
     max_scale_pct_per_period: float,
-    kontenrahmen_previous: float,
+    ecu_summe_p_budget_J_previous: float,
     *,
     gesamtauslastung: float | None = None,
     auslastung: dict[str, float] | None = None,
@@ -107,13 +105,13 @@ def scale_percentual_to_ecu(
     Rohpreise ``ecu_preise_new`` (geratene neue Verhältnisse aus der Timeline) einheitlich skalieren:
     ``p' = s · p_new`` — die **relativen** Verhältnisse der neuen Preise bleiben erhalten.
 
-    ``kontenrahmen_previous`` ist ``Σ p_alt · budget_J`` zu den **zuletzt gültigen** ECU-Preisen (letzte Periode);
+    ``ecu_summe_p_budget_J_previous`` ist ``Σ p_alt · budget_J`` zu den **zuletzt gültigen** ECU-Preisen (letzte Periode);
     das neue Bündel ist ``B_neu(s) = s · B_roh`` mit ``B_roh = Σ p_new · budget_J``.
 
     Zielrichtung ECU: ``s_ecu = ecumenge_ziel / B_roh``. Zusätzlich soll sich das Bündel gegenüber
     dem **vorigen Zeitschritt** höchstens um ``p`` Prozent ändern (``p`` = ``max_scale_pct_per_period``):
-    ``B_neu ∈ [kontenrahmen_previous·(1−p/100), kontenrahmen_previous·(1+p/100)]``, also
-    ``s ∈ [kontenrahmen_previous·(1−p/100)/B_roh, kontenrahmen_previous·(1+p/100)/B_roh]``.
+    ``B_neu ∈ [ecu_summe_p_budget_J_previous·(1−p/100), ecu_summe_p_budget_J_previous·(1+p/100)]``, also
+    ``s ∈ [ecu_summe_p_budget_J_previous·(1−p/100)/B_roh, ecu_summe_p_budget_J_previous·(1+p/100)/B_roh]``.
     Gewählt wird ``s = clamp(s_ecu, s_min, s_max)`` (ein Schritt, keine Schleife).
 
     Mit ``gesamtauslastung`` und ``auslastung`` werden die Rohpreise zuvor
@@ -125,15 +123,15 @@ def scale_percentual_to_ecu(
             gesamtauslastung, auslastung, max_scale_pct_per_period
         )
         adjusted = {k: ecu_preise_new[k] * mult[k] for k in BOUNDARY_KEYS}
-    kontenrahmen_raw = ecumenge_kontenrahmen_wert(adjusted, budget_J)
-    if kontenrahmen_raw <= 0:
+    ecu_summe_p_budget_J_raw = ecu_summe_p_wert(adjusted, budget_J)
+    if ecu_summe_p_budget_J_raw <= 0:
         raise ValueError("Summe p·BudgetJ der Rohpreise muss positiv sein.")
-    if kontenrahmen_previous <= 0:
+    if ecu_summe_p_budget_J_previous <= 0:
         raise ValueError("Referenz-Bündel Σ p_alt·BudgetJ muss positiv sein.")
     half_band = max_scale_pct_per_period / 100.0
-    s_ecu = ecumenge_ziel / kontenrahmen_raw
-    s_min = kontenrahmen_previous * (1.0 - half_band) / kontenrahmen_raw
-    s_max = kontenrahmen_previous * (1.0 + half_band) / kontenrahmen_raw
+    s_ecu = ecumenge_ziel / ecu_summe_p_budget_J_raw
+    s_min = ecu_summe_p_budget_J_previous * (1.0 - half_band) / ecu_summe_p_budget_J_raw
+    s_max = ecu_summe_p_budget_J_previous * (1.0 + half_band) / ecu_summe_p_budget_J_raw
     scale_factor = min(max(s_ecu, s_min), s_max)
     return {k: adjusted[k] * scale_factor for k in BOUNDARY_KEYS}
 
@@ -142,10 +140,10 @@ def scale_to_quota_budget(
     ecu_preise: dict[str, float], quote_T: dict[str, float], ecumenge_T: float
 ) -> dict[str, float]:
     """Normierung: ``Σ ecu_preis_k · QuoteT_k = ecumenge_T``."""
-    kontenrahmen = ecumenge_kontenrahmen_wert(ecu_preise, quote_T)
-    if kontenrahmen <= 0.0:
+    summe_p_quote_T = ecu_summe_p_wert(ecu_preise, quote_T)
+    if summe_p_quote_T <= 0.0:
         raise ValueError("Summe ecu_preis·QuoteT muss positiv sein.")
-    scale_factor = ecumenge_T / kontenrahmen
+    scale_factor = ecumenge_T / summe_p_quote_T
     return {k: ecu_preise[k] * scale_factor for k in BOUNDARY_KEYS}
 
 
@@ -439,7 +437,7 @@ def _advance_ecu_preise_soft_path(
 
     raw = _raw_ecu_preise_from_timeline(timeline)
     ecu_preise_last = {k: last_interval.ecu_preis_for(k) for k in BOUNDARY_KEYS}
-    kontenrahmen_previous = ecumenge_kontenrahmen_wert(ecu_preise_last, budget_J)
+    ecu_summe_p_budget_J_previous = ecu_summe_p_wert(ecu_preise_last, budget_J)
     gesamtauslastung = _gesamtauslastung_last_interval(timeline)
     max_pct = price_cfg.deltagesamt_pct
     threshold = gesamtauslastung_soft_path_threshold(max_pct)
@@ -459,7 +457,7 @@ def _advance_ecu_preise_soft_path(
             timeline.ecumenge_T_override = None
         p_w = _clamp_ecu_preise_vs_last_by_auslastung_share(raw, ecu_preise_last, auslastung, gesamtauslastung, max_pct)
         timeline.ecu_preise_for_next_consumption = p_w
-        timeline.warmup_diag_sum_ecu_preis_budget_T_monthly = ecumenge_kontenrahmen_p_times_budget_T(p_w, budget_T_last)
+        timeline.warmup_diag_sum_ecu_preis_budget_T_monthly = ecu_summe_p_budget_T(p_w, budget_T_last)
         timeline.warmup_diag_ecumenge_ziel_sim_monthly = timeline.ecumenge_ziel_sim / float(MONTHS_PER_YEAR)
         timeline.last_elastikfaktor = {k: 1.0 for k in BOUNDARY_KEYS}
         return timeline
@@ -475,7 +473,7 @@ def _advance_ecu_preise_soft_path(
             budget_J,
             timeline.ecumenge_ziel_sim,
             max_pct,
-            kontenrahmen_previous,
+            ecu_summe_p_budget_J_previous,
         )
     else:
         timeline.ecumenge_T_override = None
@@ -485,7 +483,7 @@ def _advance_ecu_preise_soft_path(
                 budget_J,
                 timeline.ecumenge_ziel_konfig,
                 max_pct,
-                kontenrahmen_previous,
+                ecu_summe_p_budget_J_previous,
                 gesamtauslastung=gesamtauslastung,
                 auslastung=auslastung,
             )

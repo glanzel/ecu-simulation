@@ -202,10 +202,10 @@ def print_boundary_tables(results: list[PeriodResult]) -> None:
 
 
 def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) -> None:
-    """ECU-Jahresgrößen (ecumenge_*), monatliche Ausgabe ecu_ist_T, und Kontenrahmen Σ ecu_preis·BudgetJ-Ziel."""
+    """ECU-Jahresgrößen (ecumenge_*), monatliche Ausgabe ecu_ist_T, und ecu_summe_p_budget_J."""
     w = 118
     print(f"\n{'─' * w}")
-    print("  ECU-Menge und Kontenrahmen (alle Grenzen)")
+    print("  ECU-Menge und ECU-Kosten Budgets (alle Grenzen)")
     print(f"{'─' * w}")
     print(
         f"{'Mon':>4}  "
@@ -213,20 +213,20 @@ def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) ->
         f"{'ecumenge_J':>15}  "
         f"{'ecumenge_T':>12}  "
         f"{'ecu_ist_T':>14}  "
-        f"{'Σ ecu_preis·BudgetJ-Ziel':>14}  "
+        f"{'ecu_summe_p_budget_J':>20}  "
         f"{'Slack*':>10}  "
         f"{'Ø Auslast.':>10}"
     )
     print("-" * w)
     for r in results:
-        slack_vej = r.ecumenge_kontenrahmen - r.ecumenge_ziel
+        slack_vej = r.ecu_summe_p_budget_J - r.ecumenge_ziel
         print(
             f"{r.period:4d}  "
             f"{r.ecumenge_ziel:14.8g}  "
             f"{r.ecumenge_J:14.8g}  "
             f"{r.ecumenge_T:12.6g}  "
             f"{r.ecu_ist_T:14.8g}  "
-            f"{r.ecumenge_kontenrahmen:14.8g}  "
+            f"{r.ecu_summe_p_budget_J:14.8g}  "
             f"{slack_vej:10.6g}  "
             f"{r.gesamtauslastung:10.4f}"
         )
@@ -235,9 +235,9 @@ def print_ecu_accounting_table(results: list[PeriodResult], ecu_start: float) ->
         "**ecumenge_J*** = simulierte wirksame Jahres-ECU-Menge am **Simulationsstart** (bei hoher Start-Auslastung ≥ Ziel). "
         "**ecumenge_T** = im Monat simuliert ausgegebene ECU-Menge (Obergrenze für Σ ecu_preis·BudgetJ-Ist). "
         "**ecu_ist_T** = verbuchte ECU im Monat (Σ ecu_preis·BudgetJ-Ist). "
-        "**Σ ecu_preis·BudgetJ-Ziel** = hypothetischer Jahreswert zum Monatspreisvektor — "
-        "ECU-Preis-/Bilanzlogik; **nicht** gleich der Monatsausgabe. "
-        "*Slack = Σ ecu_preis·BudgetJ-Ziel − ecumenge_ziel (nach Preisnormierung ~0, Rundung). "
+        "**ecu_summe_p_budget_J** = ECU-Kosten des vollen Jahres-Budget-Bündels zum Monatspreisvektor — "
+        "nicht gleich der Monatsausgabe. "
+        "*Slack = ecu_summe_p_budget_J − ecumenge_ziel (nach Preisnormierung ~0, Rundung). "
         "Ø Auslastung = Mittel aus NutzungT / BudgetT je Grenze (Verhältnis, kann > 1 bei Grenzüberschreitung)."
     )
 
@@ -256,7 +256,7 @@ def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> Non
         f"{'Monate':>6}  "
         f"{'ecumenge_ziel':>15}  "
         f"{'Σ ecu_ist_T (J)':>18}  "
-        f"{'Σ ecu_preis·BudgetJ-Ziel*':>14}  "
+        f"{'ecu_summe_p_budget_J*':>20}  "
         f"{'Slack*':>10}  "
         f"{'Ø Auslast.':>10}"
     )
@@ -266,20 +266,20 @@ def print_yearly_ecu_table(results: list[PeriodResult], ecu_start: float) -> Non
         n = len(rows)
         sum_pc = sum(x.ecu_ist_T for x in rows)
         last = rows[-1]
-        slack = last.ecumenge_kontenrahmen - last.ecumenge_ziel
+        slack = last.ecu_summe_p_budget_J - last.ecumenge_ziel
         gesamtauslastung = sum(x.gesamtauslastung for x in rows) / float(n)
         print(
             f"{y:4d}  {n:6d}  "
             f"{last.ecumenge_ziel:14.8g}  "
             f"{sum_pc:14.8g}  "
-            f"{last.ecumenge_kontenrahmen:14.8g}  "
+            f"{last.ecu_summe_p_budget_J:14.8g}  "
             f"{slack:10.6g}  "
             f"{gesamtauslastung:10.4f}"
         )
     print(
         f"Legende · **Σ ecu_ist_T (J)** = Summe der monatlichen Ist-ECU (≤ ecumenge_ziel bei 12 Monaten pro Jahr). "
-        f"**Σ ecu_preis·BudgetJ-Ziel*** = Wert aus dem **letzten Monat** des Jahres (Preis-/Bilanzrahmen). "
-        f"*Slack* = Σ ecu_preis·BudgetJ-Ziel − ecumenge_ziel (letzter Monat; nach Normierung ~0)."
+        f"**ecu_summe_p_budget_J*** = Wert aus dem **letzten Monat** des Jahres (ECU-Kosten volles Budget). "
+        f"*Slack* = ecu_summe_p_budget_J − ecumenge_ziel (letzter Monat; nach Normierung ~0)."
     )
 
 

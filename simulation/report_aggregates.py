@@ -35,13 +35,13 @@ def group_results_by_calendar_year(
 
 @dataclass
 class YearlyEcuSummary:
-    """Pro Kalenderjahr über alle Grenzen: verbuchte ECU und Kontenrahmen (wie CLI ``print_yearly_ecu_table``)."""
+    """Pro Kalenderjahr über alle Grenzen: verbuchte ECU und ECU-Kosten Budgets (wie CLI ``print_yearly_ecu_table``)."""
 
     year_index: int
     n_months: int
     ecumenge_ziel: float
     sum_ecu_ist_J: float
-    ecumenge_kontenrahmen: float
+    ecu_summe_p_budget_J: float
     slack_vej: float
     gesamtauslastung: float
 
@@ -81,7 +81,7 @@ def yearly_ecu_summaries(results: list[PeriodResult]) -> list[YearlyEcuSummary]:
         n = len(mrows)
         sum_pc = sum(x.ecu_ist_T for x in mrows)
         last = mrows[-1]
-        slack = last.ecumenge_kontenrahmen - last.ecumenge_ziel
+        slack = last.ecu_summe_p_budget_J - last.ecumenge_ziel
         gesamtauslastung = sum(x.gesamtauslastung for x in mrows) / float(n)
         out.append(
             YearlyEcuSummary(
@@ -89,7 +89,7 @@ def yearly_ecu_summaries(results: list[PeriodResult]) -> list[YearlyEcuSummary]:
                 n_months=n,
                 ecumenge_ziel=last.ecumenge_ziel,
                 sum_ecu_ist_J=sum_pc,
-                ecumenge_kontenrahmen=last.ecumenge_kontenrahmen,
+                ecu_summe_p_budget_J=last.ecu_summe_p_budget_J,
                 slack_vej=slack,
                 gesamtauslastung=gesamtauslastung,
             )

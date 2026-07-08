@@ -21,7 +21,7 @@ from logic.observations import (
 from logic.planetary_constants import ALL_BOUNDARIES, default_growth_by_key
 from logic.prices import (
     advance_ecu_preise,
-    ecumenge_kontenrahmen_wert,
+    ecu_summe_p_wert,
     exchange_rates_for_ecu_preise,
     reference_ecu_preise_for_demand,
 )
@@ -44,8 +44,8 @@ class PeriodResult:
     """Langfristiges planetares Ziel je Grenze (Jahres-Obergrenze, physische Einheit/a)."""
     budget_T: dict[str, float]
     """BudgetT pro Monat (``budget_J / 12``)."""
-    ecumenge_kontenrahmen: float
-    """Σ ecu_preis·BudgetJ-Ziel — hypothetischer Jahreswert des vollen Ziel-Bündels zu den ECU-Preisen."""
+    ecu_summe_p_budget_J: float
+    """Σ ecu_preis·BudgetJ-Ziel — ECU-Kosten des vollen Jahres-Budget-Bündels zu den ECU-Preisen."""
     ecu_ist_T: float
     """Verbuchte ECU im Zeitschritt T (Summe der Grenz-Spalte p·nutzung_T)."""
     ecumenge_ziel: float
@@ -78,12 +78,10 @@ def mean_start_utilization_from_fractions(nutzung_anteil_budget: dict[str, float
 def ecumenge_J_from_start(
     nutzung_anteil_budget: dict[str, float], budget_J: dict[str, float], ecumenge_ziel: float
 ) -> float:
-    """EcumengeJ = EcumengeZiel · Σ NutzungT0 / Σ BudgetJ (gewichtet); mindestens EcumengeZiel."""
-    nutzung_sum = sum(float(nutzung_anteil_budget[k]) * float(budget_J[k]) for k in BOUNDARY_KEYS)
-    budget_sum = sum(float(budget_J[k]) for k in BOUNDARY_KEYS)
-    if budget_sum <= 0.0:
-        return ecumenge_ziel
-    return ecumenge_ziel * max(1.0, nutzung_sum / budget_sum)
+    """EcumengeJ = EcumengeZiel · max(1, gesamtauslastung) am Start (Ø NutzungT/BudgetT je Grenze)."""
+    budget_T = budget_T_from_budget_J(budget_J)
+    nutzung_T = {k: float(nutzung_anteil_budget[k]) * budget_T[k] for k in BOUNDARY_KEYS}
+    return ecumenge_ziel * max(1.0, berechne_gesamtauslastung(nutzung_T, budget_T))
 
 
 def build_budget_J_bundle() -> dict[str, float]:
@@ -160,7 +158,7 @@ def run_one_period(
             reference_ecu_preis=reference_ecu_preis,
         )
     )
-    bv = ecumenge_kontenrahmen_wert(p, budget_J)
+    bv = ecu_summe_p_wert(p, budget_J)
     return p, nutzung_T, bv, ecumenge_T
 
 
@@ -257,7 +255,7 @@ def run_simulation(
             else {k: 1.0 for k in BOUNDARY_KEYS}
         )
         xr = exchange_rates_for_ecu_preise(p)
-        ecu_ist_T = ecumenge_kontenrahmen_wert(p, nutzung_T)
+        ecu_ist_T = ecu_summe_p_wert(p, nutzung_T)
         w_sum = timeline.warmup_diag_sum_ecu_preis_budget_T_monthly
         w_ecu_m = timeline.warmup_diag_ecumenge_ziel_sim_monthly
         timeline.warmup_diag_sum_ecu_preis_budget_T_monthly = None
@@ -269,7 +267,7 @@ def run_simulation(
                 nutzung_T=nutzung_T,
                 budget_J=budget_J,
                 budget_T=budget_T,
-                ecumenge_kontenrahmen=bv,
+                ecu_summe_p_budget_J=bv,
                 ecu_ist_T=ecu_ist_T,
                 ecumenge_ziel=ecumenge_ziel,
                 ecumenge_J=ecumenge_J,

@@ -444,7 +444,7 @@ def ChartsSection(i18n, chart_data_json: str, children: list | None = None) -> J
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">{i18n.text("sections.charts")}</p>
             <div class="flex flex-col gap-8 border border-slate-200/80 bg-white shadow-sm p-4">
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.mean_utilization_caption")}</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.gesamtauslastung_caption")}</p>
                     <div class="relative w-full">
                         <canvas id="chart-mean-utilization"></canvas>
                     </div>
@@ -456,7 +456,7 @@ def ChartsSection(i18n, chart_data_json: str, children: list | None = None) -> J
                     </div>
                 </div>
                 <div>
-                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.pct_vet_ziel_caption")}</p>
+                    <p class="text-xs font-medium text-slate-700 mb-2">{i18n.text("charts.pct_budget_T_caption")}</p>
                     <div class="relative w-full">
                         <canvas id="chart-pct-vet-ziel"></canvas>
                     </div>
