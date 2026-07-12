@@ -5,12 +5,12 @@ from ragtail.routing import get_default_locale, get_locale, localized_path
 from cms.locale_switch import SIMULATION_ROUTE, simulation_public_path
 
 
-async def menu_links(language_code: str | None = None) -> list[tuple[str, str]]:
+async def _menu_tree_links(menu_slug: str, language_code: str | None = None) -> list[tuple[str, str]]:
     locale = await get_locale(language_code)
     default = await get_default_locale()
     default_code = default.language_code if default else "de"
     resolved_code = locale.language_code if locale else default_code
-    items = await get_menu_tree("main", language_code=resolved_code)
+    items = await get_menu_tree(menu_slug, language_code=resolved_code)
     sim_path = simulation_public_path(resolved_code, default_language_code=default_code)
     links: list[tuple[str, str]] = []
     for item in items:
@@ -21,3 +21,11 @@ async def menu_links(language_code: str | None = None) -> list[tuple[str, str]]:
             href = localized_path(href, resolved_code, default_language_code=default_code)
         links.append((item.label, href))
     return links
+
+
+async def menu_links(language_code: str | None = None) -> list[tuple[str, str]]:
+    return await _menu_tree_links("main", language_code)
+
+
+async def footer_links(language_code: str | None = None) -> list[tuple[str, str]]:
+    return await _menu_tree_links("footer", language_code)

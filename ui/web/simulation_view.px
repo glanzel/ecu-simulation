@@ -530,6 +530,7 @@ def simulation_page(
     setup_form: WebRunFormFields | None = None,
     warmup_diag_rows: list[list[str]] | None = None,
     nav_links: list[tuple[str, str]] | None = None,
+    footer_links: list[tuple[str, str]] | None = None,
     locale_links=None,
     language_code: str = "de",
     children: list | None = None,
@@ -543,6 +544,7 @@ def simulation_page(
     return site_layout(
         title=i18n.text("page_title"),
         nav_links=nav_links,
+        footer_links=footer_links,
         locale_links=locale_links,
         language_code=language_code,
         content=[

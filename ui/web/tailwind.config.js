@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./**/*.px", "./**/*.py", "./app.py", "../../cms/**/*.px"],
+  content: ["./**/*.px", "./**/*.py", "./app.py", "../../cms/**/*.px", "../../cms/**/*.py"],
   safelist: [
     { pattern: /^grid-cols-(?:[1-9]|1[0-2])$/ },
   ],
@@ -9,6 +9,7 @@ module.exports = {
       colors: {
         brand: {
           header: "#4B5D06",
+          footerEdge: "#D99A36",
         },
         report: {
           accent: "#4B5D06",

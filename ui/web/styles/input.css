@@ -2,25 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
-/* logo3.svg: Form beibehalten, Fläche einheitlich weiß (Header) */
+/* Sticky Footer: Hauptinhalt füllt mindestens den Viewport, Footer darunter */
+.ecu-site-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ecu-site-main {
+  flex: 1 0 auto;
+  width: 100%;
+  min-height: calc(100dvh - 4.5rem);
+}
+
+.ecu-site-footer {
+  flex-shrink: 0;
+}
+
+.ecu-brand-accent-bar {
+  display: block;
+  height: 4px;
+  min-height: 4px;
+  max-height: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background-color: #d99a36;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
+}
+
+.ecu-header-accent,
+.ecu-footer-accent {
+  background-color: #d99a36;
+}
+
+.ecu-footer-menu {
+  padding-top: 10px;
+  padding-bottom: calc(1.25rem + 10px);
+}
+
+.ecu-cta-button {
+  line-height: 1.25rem;
+}
+
+.ecu-cta-arrow {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+}
+
 .logo-header-white {
   filter: brightness(0) invert(1);
 }
 
-/* Angeschnittene Kreise im Header: nur ein Teil sichtbar (overflow hidden am Eltern-Header) */
-.ecu-header-decor {
+/* Angeschnittene Kreise (Header + Footer-Dekorbereich) */
+.ecu-circle-decor {
   position: relative;
   overflow: hidden;
 }
-.ecu-header-decor::before,
-.ecu-header-decor::after {
+
+.ecu-circle-decor::before,
+.ecu-circle-decor::after {
   content: "";
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
 }
-/* links hinter dem Logo: etwas dunkler */
+
+/* Header: Kreise links mittig und rechts oben */
 .ecu-header-decor::before {
   width: clamp(80px, 18vw, 120px);
   height: clamp(80px, 18vw, 120px);
@@ -29,11 +84,64 @@
   transform: translateY(-50%);
   background: rgba(0, 0, 0, 0.14);
 }
-/* rechts oben: helleres Segment */
+
 .ecu-header-decor::after {
   width: clamp(92px, 20vw, 140px);
   height: clamp(92px, 20vw, 140px);
   right: clamp(-1.75rem, -4vw, -0.75rem);
   top: clamp(-1.5rem, -5vw, -0.75rem);
   background: rgba(255, 255, 255, 0.07);
+}
+
+/* Footer: hoher grüner Dekorbereich mit sichtbaren Kreisen */
+.ecu-footer-decor {
+  min-height: clamp(5.5rem, 16vh, 10rem);
+  background-color: #4b5d06;
+}
+
+.ecu-footer-decor::before {
+  width: clamp(110px, 24vw, 180px);
+  height: clamp(110px, 24vw, 180px);
+  left: clamp(-2.5rem, -6vw, -1rem);
+  bottom: clamp(-2.5rem, -7vw, -1rem);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.ecu-footer-decor::after {
+  width: clamp(120px, 26vw, 200px);
+  height: clamp(120px, 26vw, 200px);
+  right: clamp(-2rem, -5vw, -0.75rem);
+  top: clamp(-2rem, -6vw, -0.75rem);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.ecu-footer-circle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ecu-footer-circle--extra-a {
+  width: clamp(72px, 14vw, 112px);
+  height: clamp(72px, 14vw, 112px);
+  left: 38%;
+  top: 18%;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ecu-footer-circle--extra-b {
+  width: clamp(56px, 11vw, 88px);
+  height: clamp(56px, 11vw, 88px);
+  left: 62%;
+  bottom: 8%;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.ecu-footer-circle--extra-c {
+  width: clamp(64px, 12vw, 96px);
+  height: clamp(64px, 12vw, 96px);
+  left: 18%;
+  top: 6%;
+  background: rgba(255, 255, 255, 0.05);
 }

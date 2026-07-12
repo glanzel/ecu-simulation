@@ -5,7 +5,8 @@ import os
 
 from fastapi import FastAPI
 
-import cms.pages  # noqa: F401 — ContentPage registrieren
+import cms.pages  # noqa: F401 — Seitentypen registrieren
+from cms.templates.stream_page import streamPage
 from oxyde_config import BASE_DIR
 from ragtail import FastAPICMS, PyJsxRenderer
 
@@ -17,6 +18,7 @@ cms = FastAPICMS(
     title="ECU CMS",
     template_engine=PyJsxRenderer(components_module="cms.templates.content_page"),
 )
+cms.template_engine.register("stream_page", streamPage)
 
 
 def ensure_ragtail_dirs() -> None:

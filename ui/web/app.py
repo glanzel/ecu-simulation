@@ -13,9 +13,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from cms.locale_switch import app_locale_switch_links, simulation_public_path
-from cms.menu import menu_links
+from cms.menu import footer_links, menu_links
 from oxyde_config import DATABASES
-from cms.seed import seed_main_menu
+from cms.seed import seed_menus
 from cms.setup import cms, ensure_ragtail_dirs, setup_ragtail
 from logic.observations import BOUNDARY_KEYS, MONTHS_PER_YEAR
 from simulation.config import default_config
@@ -33,7 +33,7 @@ app = FastAPI(
     title="ECU Simulation",
     docs_url=None,
     redoc_url=None,
-    lifespan=cms.lifespan(startup_hook=seed_main_menu, **DATABASES),
+    lifespan=cms.lifespan(startup_hook=seed_menus, **DATABASES),
 )
 
 _static_dir = Path(__file__).resolve().parent / "static"
@@ -113,6 +113,7 @@ async def _render_simulation(
         setup_form=WebRunFormFields.from_run(params, cfg, growth_d),
         warmup_diag_rows=warmup_diagnostic_table_rows(results),
         nav_links=await menu_links(language_code),
+        footer_links=await footer_links(language_code),
         locale_links=await app_locale_switch_links(language_code=language_code, query=request.url.query),
         language_code=language_code,
         i18n=i18n,

@@ -1,8 +1,10 @@
-"""Beim App-Start: Menü ``main`` anlegen, falls noch nicht vorhanden."""
+"""Beim App-Start: Menüs anlegen, falls noch nicht vorhanden."""
 from __future__ import annotations
 
+from cms.pages import ContentPage
 from ragtail.menus import create_menu, create_menu_item, get_menu
 from ragtail.models import Locale, Page
+from ragtail.pages import create_page
 from ragtail.sites import get_default_site
 
 
@@ -18,3 +20,38 @@ async def seed_main_menu() -> None:
     if home_page is not None:
         await create_menu_item(menu=main_menu, label=home_page.title or "Home", page=home_page, sort_order=0)
     await create_menu_item(menu=main_menu, label="Simulation", url="/simulation", sort_order=10)
+
+
+async def _ensure_impressum_page(locale: Locale, *, parent: Page) -> Page:
+    existing = await Page.objects.filter(path="/impressum/", locale_id=locale.id).first()
+    if existing is not None:
+        return existing
+    return await create_page(
+        title="Impressum",
+        slug="impressum",
+        locale=locale,
+        parent=parent,
+        live=True,
+        page_model=ContentPage,
+        body="## Impressum\n\nInhalt bitte im Admin ergänzen.",
+    )
+
+
+async def seed_footer_menu() -> None:
+    locale = await Locale.objects.filter(is_default=True, is_active=True).first()
+    if locale is None:
+        return
+    if await get_menu("footer", language_code=locale.language_code) is not None:
+        return
+    site = await get_default_site()
+    home_page = await Page.objects.get_or_none(id=site.root_page_id) if site and site.root_page_id else None
+    if home_page is None:
+        return
+    impressum_page = await _ensure_impressum_page(locale, parent=home_page)
+    footer_menu = await create_menu(name="Footer", slug="footer", locale=locale)
+    await create_menu_item(menu=footer_menu, label="Impressum", page=impressum_page, sort_order=0)
+
+
+async def seed_menus() -> None:
+    await seed_main_menu()
+    await seed_footer_menu()

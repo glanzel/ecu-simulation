@@ -44,27 +44,67 @@ def site_header_bar(nav_links: list[tuple[str, str]] | None = None, locale_links
     cms_links = nav_links or []
     nav_link_class = "text-white/90 hover:text-white no-underline whitespace-nowrap"
     return (
-        <header class="ecu-header-decor bg-brand-header text-white shadow-sm">
-            <div class="relative z-10 max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-6">
-                <a href="/" class="flex items-center gap-3 min-w-0 no-underline hover:opacity-95 shrink-0">
-                    <img src="/static/logo3.svg" alt="" class="h-9 w-auto shrink-0 logo-header-white" width="40" height="55" />
-                    <span class="text-lg font-semibold tracking-tight text-white font-sans truncate">Ecological Unit</span>
-                </a>
-                <div class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm shrink-0">
-                    <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1">
-                        {
-                            [
-                                <a href={href} class={nav_link_class}>
-                                    {label}
-                                </a>
-                                for (label, href) in cms_links
-                            ]
-                        }
-                    </nav>
-                    {language_switcher(locale_links)}
+        <header>
+            <div class="ecu-brand-accent-bar ecu-header-accent" aria-hidden="true" />
+            <div class="ecu-circle-decor ecu-header-decor bg-brand-header text-white shadow-sm">
+                <div class="relative z-10 max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-6">
+                    <a href="/" class="flex items-center gap-3 min-w-0 no-underline hover:opacity-95 shrink-0">
+                        <img src="/static/logo3.svg" alt="" class="h-9 w-auto shrink-0 logo-header-white" width="40" height="55" />
+                        <span class="text-lg font-semibold tracking-tight text-white font-sans truncate">Ecological Unit</span>
+                    </a>
+                    <div class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm shrink-0">
+                        <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1">
+                            {
+                                [
+                                    <a href={href} class={nav_link_class}>
+                                        {label}
+                                    </a>
+                                    for (label, href) in cms_links
+                                ]
+                            }
+                        </nav>
+                        {language_switcher(locale_links)}
+                    </div>
                 </div>
             </div>
         </header>
+    )
+
+
+def site_footer(footer_links: list[tuple[str, str]] | None = None) -> JSX:
+    links = footer_links or []
+    link_class = "text-brand-header hover:text-brand-header/80 no-underline text-base font-medium"
+    menu_items: list = []
+    if links:
+        menu_items.append(
+            <nav class="flex flex-wrap items-center gap-x-6 gap-y-1" aria-label="Footer">
+                {
+                    [
+                        <a href={href} class={link_class}>
+                            {label}
+                        </a>
+                        for (label, href) in links
+                    ]
+                }
+            </nav>
+        )
+    menu_items.append(
+        <span class="text-sm text-slate-500">copyright by glanzel</span>
+    )
+    return (
+        <footer class="ecu-site-footer">
+            <div class="ecu-circle-decor ecu-footer-decor" aria-hidden="true">
+                <span class="ecu-footer-circle ecu-footer-circle--extra-a" />
+                <span class="ecu-footer-circle ecu-footer-circle--extra-b" />
+                <span class="ecu-footer-circle ecu-footer-circle--extra-c" />
+            </div>
+            <div class="ecu-brand-accent-bar ecu-footer-accent" aria-hidden="true" />
+            <div class="bg-white ecu-footer-menu">
+                <div class="max-w-5xl mx-auto px-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+                    {menu_items}
+                </div>
+            </div>
+        </footer>
     )
 
 
@@ -72,17 +112,19 @@ def site_layout(
     title: str,
     content: JSX | list,
     nav_links: list[tuple[str, str]] | None = None,
+    footer_links: list[tuple[str, str]] | None = None,
     locale_links=None,
     language_code: str = "de",
     main_class: str = "max-w-5xl mx-auto px-4 py-5",
 ) -> JSX:
     """Gemeinsamer Seitenrahmen für Simulation und CMS-Seiten."""
     return (
-        <html lang={language_code}>
+        <html lang={language_code} class="h-full">
             {site_head(title)}
-            <body class="min-h-screen bg-white text-slate-900 antialiased">
+            <body class="ecu-site-shell bg-white text-slate-900 antialiased">
                 {site_header_bar(nav_links, locale_links=locale_links)}
-                <main class={main_class}>{content}</main>
+                <main class={"ecu-site-main " + main_class}>{content}</main>
+                {site_footer(footer_links)}
             </body>
         </html>
     )

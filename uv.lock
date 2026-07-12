@@ -816,8 +816,8 @@ wheels = [
 
 [[package]]
 name = "ragtail"
-version = "0.2.0"
-source = { git = "https://github.com/glanzel/ragtail.git#f3b1a87787d906a44ce217589ac4b8ef9ddcd0d0" }
+version = "0.4.1"
+source = { git = "https://github.com/glanzel/ragtail.git#6882e8e9a3897b10c8929d6c03b449fbabbf3623" }
 dependencies = [
     { name = "bcrypt" },
     { name = "bleach" },
