@@ -43,27 +43,50 @@ def language_switcher(locale_links) -> JSX:
 def site_header_bar(nav_links: list[tuple[str, str]] | None = None, locale_links=None) -> JSX:
     cms_links = nav_links or []
     nav_link_class = "text-white/90 hover:text-white no-underline whitespace-nowrap"
+    mobile_nav_link_class = "block py-2.5 text-base text-white/90 hover:text-white no-underline"
+    nav_items = [
+        <a href={href} class={nav_link_class}>
+            {label}
+        </a>
+        for (label, href) in cms_links
+    ]
+    mobile_nav_items = [
+        <a href={href} class={mobile_nav_link_class}>
+            {label}
+        </a>
+        for (label, href) in cms_links
+    ]
     return (
-        <header>
+        <header class="ecu-site-header">
             <div class="ecu-brand-accent-bar ecu-header-accent" aria-hidden="true" />
             <div class="ecu-circle-decor ecu-header-decor bg-brand-header text-white shadow-sm">
-                <div class="relative z-10 max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-6">
+                <div class="relative z-10 max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
                     <a href="/" class="flex items-center gap-3 min-w-0 no-underline hover:opacity-95 shrink-0">
                         <img src="/static/logo3.svg" alt="" class="h-9 w-auto shrink-0 logo-header-white" width="40" height="55" />
                         <span class="text-lg font-semibold tracking-tight text-white font-sans truncate">Ecological Unit</span>
                     </a>
-                    <div class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm shrink-0">
-                        <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1">
-                            {
-                                [
-                                    <a href={href} class={nav_link_class}>
-                                        {label}
-                                    </a>
-                                    for (label, href) in cms_links
-                                ]
-                            }
+                    <div class="hidden md:flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm shrink-0">
+                        <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1" aria-label="Hauptnavigation">
+                            {nav_items}
                         </nav>
                         {language_switcher(locale_links)}
+                    </div>
+                    <button type="button" class="ecu-nav-toggle md:hidden" data-ecu-nav-toggle={True} aria-expanded="false" aria-controls="ecu-mobile-nav" aria-label="Menü öffnen">
+                        <span class="ecu-burger" aria-hidden="true">
+                            <span class="ecu-burger__bar" />
+                            <span class="ecu-burger__bar" />
+                            <span class="ecu-burger__bar" />
+                        </span>
+                    </button>
+                </div>
+                <div id="ecu-mobile-nav" class="ecu-mobile-nav md:hidden" hidden={True}>
+                    <div class="relative z-10 max-w-5xl mx-auto px-4 pb-4 text-sm">
+                        <nav class="flex flex-col border-t border-white/15 pt-2" aria-label="Hauptnavigation">
+                            {mobile_nav_items}
+                        </nav>
+                        <div class="mt-3 border-t border-white/15 pt-3">
+                            {language_switcher(locale_links)}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -73,24 +96,7 @@ def site_header_bar(nav_links: list[tuple[str, str]] | None = None, locale_links
 
 def site_footer(footer_links: list[tuple[str, str]] | None = None) -> JSX:
     links = footer_links or []
-    link_class = "text-brand-header hover:text-brand-header/80 no-underline text-base font-medium"
-    menu_items: list = []
-    if links:
-        menu_items.append(
-            <nav class="flex flex-wrap items-center gap-x-6 gap-y-1" aria-label="Footer">
-                {
-                    [
-                        <a href={href} class={link_class}>
-                            {label}
-                        </a>
-                        for (label, href) in links
-                    ]
-                }
-            </nav>
-        )
-    menu_items.append(
-        <span class="text-sm text-slate-500">copyright by glanzel</span>
-    )
+    link_class = "text-brand-header hover:text-brand-header/80 no-underline text-base font-medium block md:inline"
     return (
         <footer class="ecu-site-footer">
             <div class="ecu-circle-decor ecu-footer-decor" aria-hidden="true">
@@ -100,8 +106,22 @@ def site_footer(footer_links: list[tuple[str, str]] | None = None) -> JSX:
             </div>
             <div class="ecu-brand-accent-bar ecu-footer-accent" aria-hidden="true" />
             <div class="bg-white ecu-footer-menu">
-                <div class="max-w-5xl mx-auto px-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-                    {menu_items}
+                <div class="max-w-5xl mx-auto px-4 flex flex-col md:flex-row md:flex-wrap md:items-center gap-y-2 md:gap-x-6">
+                    {
+                        links and (
+                            <nav class="flex flex-col md:flex-row md:flex-wrap md:items-center gap-y-2 md:gap-x-6 md:gap-y-1" aria-label="Footer">
+                                {
+                                    [
+                                        <a href={href} class={link_class}>
+                                            {label}
+                                        </a>
+                                        for (label, href) in links
+                                    ]
+                                }
+                            </nav>
+                        )
+                    }
+                    <span class="text-sm text-slate-500 block">copyright by glanzel</span>
                 </div>
             </div>
         </footer>
@@ -125,6 +145,7 @@ def site_layout(
                 {site_header_bar(nav_links, locale_links=locale_links)}
                 <main class={"ecu-site-main " + main_class}>{content}</main>
                 {site_footer(footer_links)}
+                <script defer={True} src="/static/site-nav.js"></script>
             </body>
         </html>
     )
