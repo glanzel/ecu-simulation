@@ -5,7 +5,15 @@ from cms.pages import ContentPage
 from ragtail.menus import create_menu, create_menu_item, get_menu
 from ragtail.models import Locale, Page
 from ragtail.pages import create_page
+from ragtail.seed import ensure_default_locale
 from ragtail.sites import get_site_root_page, get_tree_root
+
+
+async def seed_default_locale() -> None:
+    """Legt die Default-Locale ``de`` an, wenn die Datenbank noch leer ist."""
+    if await Locale.objects.first() is not None:
+        return
+    await ensure_default_locale(language_code="de", display_name="Deutsch")
 
 
 async def _ensure_default_pages(locale: Locale) -> Page | None:
@@ -90,6 +98,7 @@ async def seed_footer_menu() -> None:
 
 
 async def seed_menus() -> None:
+    await seed_default_locale()
     await seed_default_pages()
     await seed_main_menu()
     await seed_footer_menu()
